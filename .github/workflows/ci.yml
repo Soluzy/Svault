@@ -36,13 +36,26 @@ jobs:
       - run: cargo clippy --all-targets --all-features -- -D warnings
 
   test:
-    name: test (${{ matrix.os }})
+    name: test (${{ matrix.name }})
     runs-on: ${{ matrix.os }}
+    container: ${{ matrix.container }}
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        include:
+          - name: ubuntu
+            os: ubuntu-latest
+          - name: fedora
+            os: ubuntu-latest
+            container: fedora:latest
+          - name: macos
+            os: macos-latest
     steps:
+      # Fedora's base image is minimal — install the C linker and the tools
+      # checkout/rust-toolchain need. (No-op on the bare-runner jobs.)
+      - name: Install build tools (Fedora)
+        if: matrix.container != ''
+        run: dnf install -y gcc git tar
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
