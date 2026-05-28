@@ -20,7 +20,7 @@
 
 ## Progress
 
-### ✅ Step 1 — Local encrypted vault
+### [DONE] Step 1 — Local encrypted vault
 - [x] `svault init` — interactive setup, name / description / allow_agent / rate_limit / passphrase
 - [x] `svault secret add | get | list | remove`
 - [x] AES-256-GCM encryption, Argon2id key derivation
@@ -42,14 +42,14 @@
   - [ ] `--tui` flag — enable TUI mode (default for interactive terminal, fallback to `dialoguer` for scripts)
   - [ ] `--plain` flag — disable TUI, use simple text output for piping
 
-### 🔲 Step 2 — Policy engine
+### [TODO] Step 2 — Policy engine
 - [ ] `svault.policy.yaml` — define callers, scopes, tiers per vault
 - [ ] `svault get <NAME> --scope <S> --reason "<R>"` — structured request
 - [ ] Policy checks: reason present → capability check → rate limit → burst detection
 - [ ] Sensitivity tiers: `low` (auto-approve) / `medium` (log) / `high` (human confirm)
 - [ ] `svault policy check <caller>` — show what a caller can access
 
-### 🔲 Step 3 — Daemon + multi-select auth unlock
+### [TODO] Step 3 — Daemon + multi-select auth unlock
 - [ ] **Multi-select auth at init** — `svault init` prompts user to choose/combine auth methods:
   - [ ] Passphrase (always available, works everywhere)
   - [ ] YubiKey (HMAC-SHA1 challenge-response, hardware-backed)
@@ -79,7 +79,7 @@
 - [ ] On lock: secrets wiped from memory immediately (`zeroize`)
 - [ ] Both timers configurable in `.svault/config.yaml`
 
-### 🔲 Step 4 — GUI client (Tauri)
+### [TODO] Step 4 — GUI client (Tauri)
 - [ ] `svault-gui` — cross-platform desktop app (macOS, Linux, Windows)
   - [ ] **Vault dashboard** — list all vaults, show lock/unlock status, last accessed
   - [ ] **Lock/unlock panel** — quick unlock with selected auth methods (passphrase, biometric, etc.)
@@ -92,7 +92,7 @@
   - [ ] **Audit log viewer** — see who accessed what (from policy logs)
   - [ ] Built with Tauri: lightweight, single binary, works offline, no runtime deps
 
-### 🔲 Step 5 — Platform install + MCP
+### [TODO] Step 5 — Platform install + MCP
 - [ ] `svault mcp` — start MCP server exposing `svault_get_secret(name, scope, reason)`
 - [ ] `svault install` — auto-detect platform, write MCP config
 - [ ] Claude Code: MCP server + PreToolUse hook (blocks direct `.env` reads) + PostToolUse hook (scans output for leaked credentials)
@@ -100,7 +100,7 @@
 - [ ] `--project` flag — project-scoped install, files are git-committable
 - [ ] GUI client integration — optional: Svault GUI can show active MCP sessions
 
-### 🔲 Cloud tier (optional)
+### [TODO] Cloud tier (optional)
 - [ ] `svault.soluzy.net/api/score` — Claude Haiku scores justification for anomaly detection
 - [ ] Personal plan $1–2/month — 10k scored requests/month
 - [ ] Team plan $8–15/month — shared audit dashboard, Slack alerts

@@ -10,21 +10,26 @@ Svault is an AI-aware secret access layer written in Rust. It sits between AI ag
 
 ## Install
 
+### From crates.io (recommended)
+
 ```bash
-curl -fsSL https://svault.soluzy.net/install.sh | bash
+cargo install svault-ai
+svault --version
 ```
 
-> Binary install coming at v0.1 release. Until then, build from source (see below).
-
----
-
-## Build from source
+### From source
 
 ```bash
 git clone https://github.com/Soluzy/Svault.git
 cd Svault
 cargo build --release
 ./target/release/svault --version
+```
+
+### Binary install (coming soon)
+
+```bash
+curl -fsSL https://svault.soluzy.net/install.sh | bash
 ```
 
 ---
@@ -58,24 +63,35 @@ svault lock
 ## How it works
 
 ```
-AI Agent
+AI Agent / User
    │
-   │  svault_get_secret(name, scope, reason)   ← reason is required
+   │  svault_get_secret(name, scope, reason)   ← reason required (Step 2+)
    ▼
 ┌──────────────────────────────────┐
 │          Svault daemon            │
 │                                  │
-│  reason check → capability check │
-│  rate limit → burst detection    │
+│  Multi-factor auth               │
+│  (Passphrase, YubiKey,          │
+│   TOTP, Touch ID/Face ID)        │
+│                                  │
+│  Policy checks:                  │
+│  reason → capability → rate limit│
+│  burst detection, audit log      │
 │  Claude anomaly score (cloud)    │  ← optional
-│  sensitivity tier → audit log    │
+│  sensitivity tier enforcement    │
 └──────────────┬───────────────────┘
                │
                ▼
      .svault/<vault>/vault.enc     ← AES-256-GCM encrypted, safe to commit
 ```
 
-The `reason` field is not optional. An AI that cannot explain why it needs a secret is refused immediately.
+**Authentication options (Step 3+, choose any combination):**
+- **Passphrase** — Always available, works everywhere
+- **YubiKey** — Hardware HMAC-SHA1 challenge-response
+- **Google Authenticator** — Time-based OTP (TOTP) 
+- **Touch ID / Face ID** — macOS biometric unlock
+
+The `reason` field becomes required in Step 2. An AI that cannot explain why it needs a secret is refused immediately.
 
 ---
 
@@ -134,13 +150,15 @@ svault install [--platform claude|cursor|...]  # wire into AI platform (Step 4)
 
 ## Roadmap
 
-| Step | Status | What |
+| Phase | Status | What |
 |---|---|---|
-| **Step 1** | ✅ Done | Local encrypted vault — init, add, get, list, remove, lock/unlock |
-| **Step 2** | 🔲 Next | Policy engine — `reason` field, capability check, rate limit, sensitivity tiers |
-| **Step 3** | 🔲 | Daemon — unlock once, serve requests over local socket, auto-lock timer |
-| **Step 4** | 🔲 | Platform install — `svault install` for Claude Code, Cursor, Codex, Copilot |
-| **Cloud** | 🔲 | Claude-powered anomaly scoring — $1–2/month optional service |
+| **Step 1** | DONE | Local encrypted vault with AES-256-GCM + Argon2id |
+| **Step 1+** | NEXT | Interactive CLI with Ratatui TUI (forms, browsers, dashboards) |
+| **Step 2** | TODO | Policy engine — `reason` field, capability checks, rate limiting |
+| **Step 3** | TODO | Daemon + multi-select auth (Passphrase, YubiKey, TOTP, Touch ID/Face ID) |
+| **Step 4** | TODO | Desktop GUI (Tauri) for vault management + system tray |
+| **Step 5** | TODO | MCP integration — Claude Code, Cursor, Copilot, VS Code, Aider |
+| **Cloud** | TODO | Anomaly scoring via Claude Haiku — free tier + premium plans |
 
 ---
 
