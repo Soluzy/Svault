@@ -87,22 +87,38 @@ fn main() -> Result<()> {
         return tui::run();
     };
     match command {
-        Commands::Create { name }                      => cmd_create(name),
-        Commands::Settings { vault }                   => cmd_settings(vault.as_deref()),
-        Commands::Secret { action, name, vault }       => cmd_secret(&action, name.as_deref(), vault.as_deref()),
-        Commands::Vaults                               => cmd_vaults(),
-        Commands::Unlock { vault }                     => cmd_unlock(vault.as_deref()),
-        Commands::Lock { all, vault }                  => cmd_lock(all, vault.as_deref()),
-        Commands::Status                               => cmd_status(),
+        Commands::Create { name } => cmd_create(name),
+        Commands::Settings { vault } => cmd_settings(vault.as_deref()),
+        Commands::Secret {
+            action,
+            name,
+            vault,
+        } => cmd_secret(&action, name.as_deref(), vault.as_deref()),
+        Commands::Vaults => cmd_vaults(),
+        Commands::Unlock { vault } => cmd_unlock(vault.as_deref()),
+        Commands::Lock { all, vault } => cmd_lock(all, vault.as_deref()),
+        Commands::Status => cmd_status(),
         Commands::Install { platform, .. } => {
-            println!("{} Install for '{}' coming in Step 4", style("pending:").yellow(), platform);
+            println!(
+                "{} Install for '{}' coming in Step 4",
+                style("pending:").yellow(),
+                platform
+            );
             Ok(())
         }
-        Commands::Get { name, scope, reason, .. } => {
+        Commands::Get {
+            name,
+            scope,
+            reason,
+            ..
+        } => {
             println!("{} Requesting: {}", style(">").cyan(), style(&name).bold());
             println!("  scope:  {scope}");
             println!("  reason: {reason}");
-            println!("{} Policy engine coming in Step 2", style("pending:").yellow());
+            println!(
+                "{} Policy engine coming in Step 2",
+                style("pending:").yellow()
+            );
             Ok(())
         }
     }
@@ -111,7 +127,10 @@ fn main() -> Result<()> {
 // ── Commands ─────────────────────────────────────────────────────────────────
 
 fn cmd_create(name_arg: Option<String>) -> Result<()> {
-    println!("{}", style("┌─ New Vault ─────────────────────────────┐").dim());
+    println!(
+        "{}",
+        style("┌─ New Vault ─────────────────────────────┐").dim()
+    );
 
     let default_name = std::env::current_dir()
         .ok()
@@ -120,7 +139,10 @@ fn cmd_create(name_arg: Option<String>) -> Result<()> {
 
     let name: String = match name_arg {
         Some(n) => n,
-        None => Input::new().with_prompt("  Vault name").default(default_name).interact_text()?,
+        None => Input::new()
+            .with_prompt("  Vault name")
+            .default(default_name)
+            .interact_text()?,
     };
 
     let vault_dir = PathBuf::from(SVAULT_DIR).join(&name);
@@ -162,12 +184,18 @@ fn cmd_create(name_arg: Option<String>) -> Result<()> {
 
     if let Some(w) = passphrase::check(&passphrase) {
         println!("{} {}", style("warning:").yellow(), w.0);
-        if !Confirm::new().with_prompt("  Continue anyway?").default(false).interact()? {
+        if !Confirm::new()
+            .with_prompt("  Continue anyway?")
+            .default(false)
+            .interact()?
+        {
             return Ok(());
         }
     }
 
-    let confirm = Password::new().with_prompt("  Confirm passphrase").interact()?;
+    let confirm = Password::new()
+        .with_prompt("  Confirm passphrase")
+        .interact()?;
     if passphrase != confirm {
         eprintln!("{} Passphrases do not match", style("error:").red());
         std::process::exit(1);
@@ -178,18 +206,39 @@ fn cmd_create(name_arg: Option<String>) -> Result<()> {
     let meta = VaultMeta::new(
         name.clone(),
         description,
-        AccessConfig { allow_agent, rate_limit },
-        VaultSettings { autolock, autolock_timer, login_method },
+        AccessConfig {
+            allow_agent,
+            rate_limit,
+        },
+        VaultSettings {
+            autolock,
+            autolock_timer,
+            login_method,
+        },
     );
     Vault::init(&vault_dir, &passphrase, meta)?;
 
     println!();
-    println!("  {:<14} {}", style("Name").dim(),     style(&name).bold().cyan());
-    println!("  {:<14} {}", style("Location").dim(), style(format!("{}/", vault_dir.display())).cyan());
+    println!(
+        "  {:<14} {}",
+        style("Name").dim(),
+        style(&name).bold().cyan()
+    );
+    println!(
+        "  {:<14} {}",
+        style("Location").dim(),
+        style(format!("{}/", vault_dir.display())).cyan()
+    );
     println!();
     println!("{} Vault '{}' created", style("ok:").green().bold(), name);
-    println!("{}", style("  vault.enc + meta.yaml are safe to commit — encrypted at rest.").dim());
-    println!("{}", style(format!("  git add {}/", vault_dir.display())).dim());
+    println!(
+        "{}",
+        style("  vault.enc + meta.yaml are safe to commit — encrypted at rest.").dim()
+    );
+    println!(
+        "{}",
+        style(format!("  git add {}/", vault_dir.display())).dim()
+    );
     Ok(())
 }
 
@@ -200,18 +249,57 @@ fn cmd_settings(vault_name: Option<&str>) -> Result<()> {
     let preview = VaultMeta::load_unverified(&vault_dir)?;
 
     let passphrase = obtain_passphrase(&vault_dir, &preview.name)?;
-    let vault = Vault::open(&vault_dir, &passphrase)
-        .map_err(|e| { eprintln!("{} {}", style("error:").red(), e); std::process::exit(1); #[allow(unreachable_code)] e })?;
+    let vault = Vault::open(&vault_dir, &passphrase).map_err(|e| {
+        eprintln!("{} {}", style("error:").red(), e);
+        std::process::exit(1);
+        #[allow(unreachable_code)]
+        e
+    })?;
 
     let mut meta = vault.meta.clone();
 
-    println!("{}", style(format!("┌─ Settings · {} ──────────────────────┐", meta.name)).dim());
-    println!("  {:<16} {}", style("Description").dim(),     if meta.description.is_empty() { "-".into() } else { meta.description.clone() });
-    println!("  {:<16} {}", style("Allow agent").dim(),     meta.access.allow_agent.to_string());
-    println!("  {:<16} {}", style("Rate limit").dim(),      meta.access.rate_limit);
-    println!("  {:<16} {}", style("Auto-lock").dim(),       meta.settings.autolock);
-    println!("  {:<16} {}", style("Auto-lock timer").dim(), meta.settings.autolock_timer);
-    println!("  {:<16} {}", style("Login method").dim(),    meta.settings.login_method);
+    println!(
+        "{}",
+        style(format!(
+            "┌─ Settings · {} ──────────────────────┐",
+            meta.name
+        ))
+        .dim()
+    );
+    println!(
+        "  {:<16} {}",
+        style("Description").dim(),
+        if meta.description.is_empty() {
+            "-".into()
+        } else {
+            meta.description.clone()
+        }
+    );
+    println!(
+        "  {:<16} {}",
+        style("Allow agent").dim(),
+        meta.access.allow_agent
+    );
+    println!(
+        "  {:<16} {}",
+        style("Rate limit").dim(),
+        meta.access.rate_limit
+    );
+    println!(
+        "  {:<16} {}",
+        style("Auto-lock").dim(),
+        meta.settings.autolock
+    );
+    println!(
+        "  {:<16} {}",
+        style("Auto-lock timer").dim(),
+        meta.settings.autolock_timer
+    );
+    println!(
+        "  {:<16} {}",
+        style("Login method").dim(),
+        meta.settings.login_method
+    );
     println!();
 
     meta.description = Input::new()
@@ -244,7 +332,11 @@ fn cmd_settings(vault_name: Option<&str>) -> Result<()> {
     vault.save_meta(&meta)?;
 
     println!();
-    println!("{} Settings for '{}' updated", style("ok:").green().bold(), meta.name);
+    println!(
+        "{} Settings for '{}' updated",
+        style("ok:").green().bold(),
+        meta.name
+    );
     Ok(())
 }
 
@@ -253,7 +345,11 @@ fn cmd_unlock(vault_name: Option<&str>) -> Result<()> {
     let meta = VaultMeta::load_unverified(&vault_dir)?;
 
     if session::is_unlocked(&vault_dir) {
-        println!("{} Vault '{}' is already unlocked", style("ok:").green(), meta.name);
+        println!(
+            "{} Vault '{}' is already unlocked",
+            style("ok:").green(),
+            meta.name
+        );
         return Ok(());
     }
 
@@ -262,13 +358,24 @@ fn cmd_unlock(vault_name: Option<&str>) -> Result<()> {
         .interact()?;
 
     // Validate passphrase before caching
-    Vault::open(&vault_dir, &passphrase)
-        .map_err(|e| { eprintln!("{} {}", style("error:").red(), e); std::process::exit(1); #[allow(unreachable_code)] e })?;
+    Vault::open(&vault_dir, &passphrase).map_err(|e| {
+        eprintln!("{} {}", style("error:").red(), e);
+        std::process::exit(1);
+        #[allow(unreachable_code)]
+        e
+    })?;
 
     session::unlock(&vault_dir, &passphrase)?;
 
-    println!("{} Vault '{}' unlocked", style("ok:").green().bold(), meta.name);
-    println!("{}", style("  Session active — passphrase cached in .svault/<name>/.session (mode 0600)").dim());
+    println!(
+        "{} Vault '{}' unlocked",
+        style("ok:").green().bold(),
+        meta.name
+    );
+    println!(
+        "{}",
+        style("  Session active — passphrase cached in .svault/<name>/.session (mode 0600)").dim()
+    );
     println!("{}", style("  Run 'svault lock' to clear it.").dim());
     Ok(())
 }
@@ -287,18 +394,30 @@ fn cmd_lock(lock_all: bool, vault_name: Option<&str>) -> Result<()> {
     let vault_dir = resolve_vault_dir(vault_name)?;
     let meta = VaultMeta::load_unverified(&vault_dir)?;
     session::lock(&vault_dir)?;
-    println!("{} Vault '{}' locked", style("ok:").yellow().bold(), meta.name);
+    println!(
+        "{} Vault '{}' locked",
+        style("ok:").yellow().bold(),
+        meta.name
+    );
     Ok(())
 }
 
 fn cmd_status() -> Result<()> {
     let dirs = list_vault_dirs();
     if dirs.is_empty() {
-        println!("{}", style("No vaults found. Run 'svault create' to make one.").dim());
+        println!(
+            "{}",
+            style("No vaults found. Run 'svault create' to make one.").dim()
+        );
         return Ok(());
     }
 
-    println!("{:<20} {:<12} {}", style("VAULT").bold(), style("STATUS").bold(), style("DESCRIPTION").bold());
+    println!(
+        "{:<20} {:<12} {}",
+        style("VAULT").bold(),
+        style("STATUS").bold(),
+        style("DESCRIPTION").bold()
+    );
     println!("{}", style("─".repeat(55)).dim());
 
     for dir in &dirs {
@@ -308,10 +427,15 @@ fn cmd_status() -> Result<()> {
             } else {
                 style("locked").dim().to_string()
             };
-            println!("{:<20} {:<12} {}",
+            println!(
+                "{:<20} {:<12} {}",
                 style(&meta.name).cyan(),
                 status,
-                if meta.description.is_empty() { "-".into() } else { meta.description.clone() },
+                if meta.description.is_empty() {
+                    "-".into()
+                } else {
+                    meta.description.clone()
+                },
             );
         }
     }
@@ -334,12 +458,19 @@ fn cmd_secret(action: &str, name: Option<&str>, vault_name: Option<&str>) -> Res
         let p = Password::new()
             .with_prompt(format!("  Passphrase for '{}'", meta_preview.name))
             .interact()?;
-        println!("{}", style("  Tip: run 'svault unlock' to cache passphrase for this session").dim());
+        println!(
+            "{}",
+            style("  Tip: run 'svault unlock' to cache passphrase for this session").dim()
+        );
         p
     };
 
-    let vault = Vault::open(&vault_dir, &passphrase)
-        .map_err(|e| { eprintln!("{} {}", style("error:").red(), e); std::process::exit(1); #[allow(unreachable_code)] e })?;
+    let vault = Vault::open(&vault_dir, &passphrase).map_err(|e| {
+        eprintln!("{} {}", style("error:").red(), e);
+        std::process::exit(1);
+        #[allow(unreachable_code)]
+        e
+    })?;
 
     match action {
         "add" => {
@@ -347,18 +478,34 @@ fn cmd_secret(action: &str, name: Option<&str>, vault_name: Option<&str>) -> Res
                 Some(n) => n.to_string(),
                 None => Input::new().with_prompt("  Secret name").interact_text()?,
             };
-            let value = Password::new().with_prompt(format!("  Value for '{secret_name}'")).interact()?;
+            let value = Password::new()
+                .with_prompt(format!("  Value for '{secret_name}'"))
+                .interact()?;
             vault.add_secret(&secret_name, &value)?;
-            println!("{} Secret '{}' added", style("ok:").green().bold(), secret_name);
+            println!(
+                "{} Secret '{}' added",
+                style("ok:").green().bold(),
+                secret_name
+            );
         }
         "get" => {
             let Some(secret_name) = name else {
-                eprintln!("{} Provide a secret name: svault secret get <NAME>", style("error:").red());
+                eprintln!(
+                    "{} Provide a secret name: svault secret get <NAME>",
+                    style("error:").red()
+                );
                 std::process::exit(1);
             };
             match vault.get_secret(secret_name)? {
                 Some(value) => println!("{value}"),
-                None => { eprintln!("{} Secret '{}' not found", style("error:").red(), secret_name); std::process::exit(1); }
+                None => {
+                    eprintln!(
+                        "{} Secret '{}' not found",
+                        style("error:").red(),
+                        secret_name
+                    );
+                    std::process::exit(1);
+                }
             }
         }
         "list" => {
@@ -366,25 +513,44 @@ fn cmd_secret(action: &str, name: Option<&str>, vault_name: Option<&str>) -> Res
             if names.is_empty() {
                 println!("{}", style("No secrets stored yet.").dim());
             } else {
-                println!("{}", style(format!("Secrets in '{}':", vault.meta.name)).bold());
-                for n in &names { println!("  {}", style(n).cyan()); }
+                println!(
+                    "{}",
+                    style(format!("Secrets in '{}':", vault.meta.name)).bold()
+                );
+                for n in &names {
+                    println!("  {}", style(n).cyan());
+                }
             }
         }
         "remove" => {
             let secret_name: String = match name {
                 Some(n) => n.to_string(),
-                None => Input::new().with_prompt("  Secret name to remove").interact_text()?,
+                None => Input::new()
+                    .with_prompt("  Secret name to remove")
+                    .interact_text()?,
             };
-            if Confirm::new().with_prompt(format!("  Remove '{secret_name}'?")).default(false).interact()? {
+            if Confirm::new()
+                .with_prompt(format!("  Remove '{secret_name}'?"))
+                .default(false)
+                .interact()?
+            {
                 if vault.remove_secret(&secret_name)? {
                     println!("{} Secret '{}' removed", style("ok:").yellow(), secret_name);
                 } else {
-                    eprintln!("{} Secret '{}' not found", style("error:").red(), secret_name);
+                    eprintln!(
+                        "{} Secret '{}' not found",
+                        style("error:").red(),
+                        secret_name
+                    );
                 }
             }
         }
         _ => {
-            eprintln!("{} Unknown action '{}'. Use: add | get | list | remove", style("error:").red(), action);
+            eprintln!(
+                "{} Unknown action '{}'. Use: add | get | list | remove",
+                style("error:").red(),
+                action
+            );
             std::process::exit(1);
         }
     }
@@ -394,20 +560,32 @@ fn cmd_secret(action: &str, name: Option<&str>, vault_name: Option<&str>) -> Res
 fn cmd_vaults() -> Result<()> {
     let dirs = list_vault_dirs();
     if dirs.is_empty() {
-        println!("{}", style("No vaults found. Run 'svault create' to make one.").dim());
+        println!(
+            "{}",
+            style("No vaults found. Run 'svault create' to make one.").dim()
+        );
         return Ok(());
     }
-    println!("{:<20} {:<30} {:<20} {:<12} {}",
-        style("NAME").bold(), style("DESCRIPTION").bold(),
-        style("ALLOW AGENT").bold(), style("RATE LIMIT").bold(), style("CREATED").bold(),
+    println!(
+        "{:<20} {:<30} {:<20} {:<12} {}",
+        style("NAME").bold(),
+        style("DESCRIPTION").bold(),
+        style("ALLOW AGENT").bold(),
+        style("RATE LIMIT").bold(),
+        style("CREATED").bold(),
     );
     println!("{}", style("─".repeat(90)).dim());
     for dir in &dirs {
         if let Ok(meta) = VaultMeta::load_unverified(dir) {
             let created = &meta.created_at[..10];
-            println!("{:<20} {:<30} {:<20} {:<12} {}",
+            println!(
+                "{:<20} {:<30} {:<20} {:<12} {}",
                 style(&meta.name).cyan(),
-                if meta.description.is_empty() { "-".into() } else { meta.description.clone() },
+                if meta.description.is_empty() {
+                    "-".into()
+                } else {
+                    meta.description.clone()
+                },
                 meta.access.allow_agent.to_string(),
                 meta.access.rate_limit,
                 created,
@@ -427,7 +605,12 @@ fn resolve_vault_dir(vault_name: Option<&str>) -> Result<PathBuf> {
     if let Some(n) = vault_name {
         let dir = PathBuf::from(SVAULT_DIR).join(n);
         if !dir.join("meta.yaml").exists() {
-            eprintln!("{} Vault '{}' not found in {}/", style("error:").red(), n, SVAULT_DIR);
+            eprintln!(
+                "{} Vault '{}' not found in {}/",
+                style("error:").red(),
+                n,
+                SVAULT_DIR
+            );
             std::process::exit(1);
         }
         return Ok(dir);
@@ -436,14 +619,22 @@ fn resolve_vault_dir(vault_name: Option<&str>) -> Result<PathBuf> {
     let dirs = list_vault_dirs();
     match dirs.len() {
         0 => {
-            eprintln!("{} No vault found. Run {} first.", style("error:").red(), style("svault create").bold());
+            eprintln!(
+                "{} No vault found. Run {} first.",
+                style("error:").red(),
+                style("svault create").bold()
+            );
             std::process::exit(1);
         }
         1 => Ok(dirs[0].clone()),
         _ => {
             let names: Vec<String> = dirs
                 .iter()
-                .map(|d| VaultMeta::load_unverified(d).map(|m| m.name).unwrap_or_else(|_| d.display().to_string()))
+                .map(|d| {
+                    VaultMeta::load_unverified(d)
+                        .map(|m| m.name)
+                        .unwrap_or_else(|_| d.display().to_string())
+                })
                 .collect();
             let idx = Select::new()
                 .with_prompt("  Which vault?")
@@ -469,7 +660,11 @@ fn obtain_passphrase(vault_dir: &Path, vault_name: &str) -> Result<String> {
 
 /// Prompt for agent access. `current` pre-selects the matching choice when editing.
 fn prompt_allow_agent(current: Option<&AllowAgent>) -> Result<AllowAgent> {
-    let choices = &["yes — all agents", "no — block all agents", "list — specific agents only"];
+    let choices = &[
+        "yes — all agents",
+        "no — block all agents",
+        "list — specific agents only",
+    ];
     let (default_idx, default_list) = match current {
         Some(AllowAgent::Bool(true)) => (0, String::new()),
         Some(AllowAgent::Bool(false)) => (1, String::new()),
@@ -492,7 +687,10 @@ fn prompt_allow_agent(current: Option<&AllowAgent>) -> Result<AllowAgent> {
                 .with_initial_text(&default_list)
                 .interact_text()?;
             AllowAgent::List(
-                raw.split(',').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect(),
+                raw.split(',')
+                    .map(|s| s.trim().to_string())
+                    .filter(|s| !s.is_empty())
+                    .collect(),
             )
         }
     })
@@ -501,7 +699,11 @@ fn prompt_allow_agent(current: Option<&AllowAgent>) -> Result<AllowAgent> {
 /// Prompt for login method. Only passphrase works today — yubikey and google
 /// auth are shown but fall back to passphrase with a notice.
 fn prompt_login_method(current: Option<LoginMethod>) -> Result<LoginMethod> {
-    let choices = &["passphrase", "yubikey (coming soon)", "google auth (coming soon)"];
+    let choices = &[
+        "passphrase",
+        "yubikey (coming soon)",
+        "google auth (coming soon)",
+    ];
     let default_idx = match current {
         Some(LoginMethod::Passphrase) | None => 0,
         Some(LoginMethod::Yubikey) => 1,
@@ -515,7 +717,10 @@ fn prompt_login_method(current: Option<LoginMethod>) -> Result<LoginMethod> {
         .interact()?;
 
     if idx != 0 {
-        println!("{} Only passphrase is available right now — using passphrase.", style("note:").cyan());
+        println!(
+            "{} Only passphrase is available right now — using passphrase.",
+            style("note:").cyan()
+        );
     }
     Ok(LoginMethod::Passphrase)
 }

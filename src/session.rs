@@ -3,12 +3,8 @@
 /// The passphrase is stored in .svault/<name>/.session (mode 0600).
 /// This is NOT the production daemon — that's Step 3.
 /// Purpose: simulate the unlock-once-use-many-times UX.
-
 use anyhow::Result;
 use std::path::{Path, PathBuf};
-
-#[cfg(unix)]
-use std::os::unix::fs::PermissionsExt;
 
 fn session_path(vault_dir: &Path) -> PathBuf {
     vault_dir.join(".session")
@@ -24,7 +20,9 @@ pub fn unlock(vault_dir: &Path, passphrase: &str) -> Result<()> {
         use std::io::Write;
         use std::os::unix::fs::OpenOptionsExt;
         let mut f = std::fs::OpenOptions::new()
-            .write(true).create(true).truncate(true)
+            .write(true)
+            .create(true)
+            .truncate(true)
             .mode(0o600)
             .open(&path)?;
         f.write_all(passphrase.as_bytes())?;
@@ -56,7 +54,9 @@ pub fn is_unlocked(vault_dir: &Path) -> bool {
 /// Read cached passphrase from session file.
 pub fn get_passphrase(vault_dir: &Path) -> Option<String> {
     let path = session_path(vault_dir);
-    std::fs::read_to_string(&path).ok().map(|s| s.trim().to_string())
+    std::fs::read_to_string(&path)
+        .ok()
+        .map(|s| s.trim().to_string())
 }
 
 /// Lock all vaults in .svault/

@@ -43,7 +43,11 @@ impl Vault {
         meta_input.save(vault_dir, key.bytes())?;
 
         let meta = VaultMeta::load_verified(vault_dir, key.bytes())?;
-        Ok(Self { vault_dir: vault_dir.to_path_buf(), meta, key })
+        Ok(Self {
+            vault_dir: vault_dir.to_path_buf(),
+            meta,
+            key,
+        })
     }
 
     /// Open an existing vault with passphrase.
@@ -59,7 +63,11 @@ impl Vault {
         crypto::decrypt(&key, &encrypted)?;
 
         let meta = VaultMeta::load_verified(vault_dir, key.bytes())?;
-        Ok(Self { vault_dir: vault_dir.to_path_buf(), meta, key })
+        Ok(Self {
+            vault_dir: vault_dir.to_path_buf(),
+            meta,
+            key,
+        })
     }
 
     /// Re-sign and persist updated metadata (settings, description, access).
@@ -218,8 +226,14 @@ mod tests {
 
         // Re-open from disk
         let v2 = Vault::open(&vault_dir, "Str0ng!Pass#99").unwrap();
-        assert_eq!(v2.get_secret("DB_URL").unwrap(), Some("postgres://localhost/mydb".to_string()));
-        assert_eq!(v2.get_secret("REDIS_URL").unwrap(), Some("redis://localhost:6379".to_string()));
+        assert_eq!(
+            v2.get_secret("DB_URL").unwrap(),
+            Some("postgres://localhost/mydb".to_string())
+        );
+        assert_eq!(
+            v2.get_secret("REDIS_URL").unwrap(),
+            Some("redis://localhost:6379".to_string())
+        );
     }
 
     #[test]

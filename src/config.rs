@@ -1,3 +1,6 @@
+// Scaffolding for Step 3 daemon config — wired up later.
+#![allow(dead_code)]
+
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
@@ -15,8 +18,12 @@ pub struct LockConfig {
     pub max_unlocked_secs: u64,
 }
 
-fn default_idle_timeout() -> u64 { 15 * 60 }
-fn default_max_unlocked() -> u64 { 8 * 60 * 60 }
+fn default_idle_timeout() -> u64 {
+    15 * 60
+}
+fn default_max_unlocked() -> u64 {
+    8 * 60 * 60
+}
 
 impl Default for LockConfig {
     fn default() -> Self {
