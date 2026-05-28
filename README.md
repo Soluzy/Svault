@@ -6,6 +6,8 @@ Svault is an AI-aware secret access layer written in Rust. It sits between AI ag
 
 **Why Svault?** Every existing secret manager (1Password, Infisical, HashiCorp Vault) treats an AI agent the same as a human or a script. Svault doesn't. It knows the difference.
 
+![Svault Banner](_docs/banner.jpg)
+
 ---
 
 ## Install
