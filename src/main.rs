@@ -4,6 +4,8 @@ mod crypto;
 mod meta;
 mod passphrase;
 mod policy;
+mod portable;
+mod recovery;
 mod session;
 mod tui;
 mod vault;
@@ -90,6 +92,24 @@ enum Commands {
         /// Caller name (for `check`).
         caller: Option<String>,
     },
+    /// Recover a vault with its recovery code and set a new passphrase
+    Recover {
+        /// Vault name (positional). Omit to use the only vault or pick interactively.
+        vault: Option<String>,
+    },
+    /// Export a vault to a portable encrypted bundle
+    Export {
+        /// Vault name (positional). Omit to use the only vault or pick interactively.
+        vault: Option<String>,
+        /// Output file (default: <name>.svault-export.json)
+        #[arg(long)]
+        out: Option<String>,
+    },
+    /// Import a vault from a bundle created by `svault export`
+    Import {
+        /// Path to the .svault-export.json bundle
+        file: String,
+    },
 }
 
 fn main() -> Result<()> {
@@ -126,6 +146,9 @@ fn main() -> Result<()> {
             vault,
         } => cmd_get(&name, &scope, &reason, caller.as_deref(), vault.as_deref()),
         Commands::Policy { action, caller } => cmd_policy(&action, caller.as_deref()),
+        Commands::Recover { vault } => cmd_recover(vault.as_deref()),
+        Commands::Export { vault, out } => cmd_export(vault.as_deref(), out.as_deref()),
+        Commands::Import { file } => cmd_import(&file),
     }
 }
 
@@ -233,7 +256,11 @@ fn cmd_create(name_arg: Option<String>) -> Result<()> {
         },
     );
     meta.storage = storage.to_string();
-    Vault::init(&vault_dir, &passphrase, meta)?;
+    let vault = Vault::init(&vault_dir, &passphrase, meta)?;
+
+    // Generate a recovery code and wrap the vault key under it. Shown once.
+    let recovery_code = recovery::generate_code();
+    recovery::write(&vault_dir, vault.key(), &recovery_code)?;
 
     println!();
     println!(
@@ -257,6 +284,38 @@ fn cmd_create(name_arg: Option<String>) -> Result<()> {
         "{}",
         style(format!("  git add {}/", vault_dir.display())).dim()
     );
+
+    println!();
+    println!("{}", style("  RECOVERY CODE").yellow().bold());
+    println!("  {}", style(&recovery_code).bold());
+    println!(
+        "{}",
+        style("  This is the ONLY time this code is shown — it is not stored in plaintext.")
+            .yellow()
+    );
+    println!(
+        "{}",
+        style("  Save it now in a password manager (or on paper, offline).").dim()
+    );
+    println!(
+        "{}",
+        style("  It is the only way back in if you lose your passphrase — run 'svault recover'.")
+            .dim()
+    );
+
+    // Require an explicit acknowledgment that the code was saved — the code is
+    // not recoverable once this screen is gone.
+    println!();
+    while !Confirm::new()
+        .with_prompt("  I have saved my recovery code")
+        .default(false)
+        .interact()?
+    {
+        println!(
+            "{}",
+            style("  Save it first — it cannot be retrieved later.").yellow()
+        );
+    }
     Ok(())
 }
 
@@ -865,6 +924,115 @@ fn unlocked_secret_names(vault_dir: &Path) -> Vec<String> {
     Vault::open(vault_dir, &pass)
         .and_then(|v| v.list_secret_names())
         .unwrap_or_default()
+}
+
+// ── Recovery, export, import ────────────────────────────────────────────────
+
+fn cmd_recover(vault_name: Option<&str>) -> Result<()> {
+    let vault_dir = resolve_vault_dir(vault_name)?;
+    let meta = VaultMeta::load_unverified(&vault_dir)?;
+
+    if !recovery::exists(&vault_dir) {
+        eprintln!(
+            "{} Vault '{}' has no recovery file — it predates recovery support.",
+            style("error:").red(),
+            meta.name
+        );
+        std::process::exit(1);
+    }
+
+    let code = Password::new()
+        .with_prompt(format!("  Recovery code for '{}'", meta.name))
+        .interact()?;
+
+    // Confirm the code opens this vault before asking for a new passphrase.
+    recovery::unlock_with_code(&vault_dir, &code).unwrap_or_else(|e| {
+        eprintln!("{} {}", style("error:").red(), e);
+        std::process::exit(1);
+    });
+
+    println!(
+        "{} Recovery code accepted — set a new passphrase.",
+        style("ok:").green()
+    );
+    let new_pass = Password::new().with_prompt("  New passphrase").interact()?;
+    if let Some(w) = passphrase::check(&new_pass) {
+        println!("{} {}", style("warning:").yellow(), w.0);
+    }
+    let confirm = Password::new()
+        .with_prompt("  Confirm passphrase")
+        .interact()?;
+    if new_pass != confirm {
+        eprintln!("{} Passphrases do not match", style("error:").red());
+        std::process::exit(1);
+    }
+
+    recovery::recover_and_rekey(&vault_dir, &code, &new_pass)?;
+    // Drop any stale cached session (it holds the old passphrase).
+    session::lock(&vault_dir).ok();
+
+    println!(
+        "{} Passphrase reset for '{}'. Recovery code unchanged.",
+        style("ok:").green().bold(),
+        meta.name
+    );
+    Ok(())
+}
+
+fn cmd_export(vault_name: Option<&str>, out: Option<&str>) -> Result<()> {
+    let vault_dir = resolve_vault_dir(vault_name)?;
+    let meta = VaultMeta::load_unverified(&vault_dir)?;
+
+    let json = portable::build_bundle(&vault_dir, &meta.name, &meta.storage).unwrap_or_else(|e| {
+        eprintln!("{} {}", style("error:").red(), e);
+        std::process::exit(1);
+    });
+
+    let out_path = out
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from(format!("{}.svault-export.json", meta.name)));
+    std::fs::write(&out_path, json)?;
+
+    // Keep the bundle out of git so it can't be pushed by mistake.
+    let out_dir = out_path.parent().filter(|p| !p.as_os_str().is_empty());
+    portable::ensure_export_gitignored(out_dir.unwrap_or_else(|| Path::new(".")));
+
+    println!(
+        "{} Exported '{}' to {}",
+        style("ok:").green().bold(),
+        meta.name,
+        out_path.display()
+    );
+    println!(
+        "{}",
+        style("  The bundle is encrypted — import it with 'svault import'.").dim()
+    );
+    Ok(())
+}
+
+fn cmd_import(file: &str) -> Result<()> {
+    let raw = std::fs::read_to_string(file).unwrap_or_else(|e| {
+        eprintln!("{} cannot read {}: {}", style("error:").red(), file, e);
+        std::process::exit(1);
+    });
+
+    let name = portable::import_bundle(&raw, Path::new(SVAULT_DIR)).unwrap_or_else(|e| {
+        eprintln!("{} {}", style("error:").red(), e);
+        std::process::exit(1);
+    });
+
+    println!(
+        "{} Imported '{}' into {}/{}/",
+        style("ok:").green().bold(),
+        name,
+        SVAULT_DIR,
+        name
+    );
+    println!(
+        "{}",
+        style("  Unlock it with its original passphrase (or 'svault recover').").dim()
+    );
+    Ok(())
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

@@ -42,6 +42,7 @@ flowchart LR
 | [Interactive mode (TUI)](docs/tui.md) | The full-screen dashboard and keybindings |
 | [Command reference](docs/commands.md) | Every subcommand and flag |
 | [Policy engine](docs/policy-engine.md) | The agent path — `svault get`, scopes, tiers, audit |
+| [Recovery & portability](docs/recovery.md) | Recovery code for a lost passphrase, export/import bundles |
 | [Storage backends](docs/storage-backends.md) | Local today; cloud / self-hosted / S3 placeholders |
 | [Security model](docs/security.md) | Crypto, memory safety, what's safe to commit |
 | [Architecture](docs/architecture.md) | How it works, on-disk layout, auth methods |
@@ -57,6 +58,7 @@ flowchart LR
 cargo install svault-ai
 
 # 1. Create an encrypted vault (interactive: storage, name, agents, auto-lock, passphrase…)
+#    Prints a one-time recovery code — save it (see 'svault recover').
 svault create
 
 # 2. Add secrets
@@ -133,6 +135,25 @@ Policy lives in a committable `svault.policy.yaml` (no secrets inside). `high`-t
 </details>
 
 <details>
+<summary><b>Recovery & portability</b></summary>
+
+<br>
+
+`svault create` prints a one-time **recovery code** — a 160-bit second key that resets a lost passphrase. It's shown once and never stored in plaintext; keep it in a password manager.
+
+```bash
+svault recover                       # enter the code, set a new passphrase
+svault export myvault --out vault.json   # portable, checksummed encrypted bundle
+svault import vault.json                 # restore on another machine
+```
+
+The bundle carries no machine-specific state and every byte is encrypted or signed — safe to move between machines (same major Svault version).
+
+**Recovery code + export/import → [docs/recovery.md](docs/recovery.md)**
+
+</details>
+
+<details>
 <summary><b>Storage backends</b></summary>
 
 <br>
@@ -197,7 +218,7 @@ flowchart TD
 | **Step 1** | Done | Local encrypted vault — AES-256-GCM + Argon2id |
 | **Step 1+** | Done | Interactive Ratatui TUI — forms, browsers, lock-aware secrets |
 | **Step 2** | Done | Policy engine — caller identity, `reason`, scopes, tiers, rate limit, audit log |
-| **Step 3** | Planned | Daemon + multi-select auth (Passphrase, YubiKey, TOTP, Touch ID/Face ID) |
+| **Step 3** | In progress | Recovery (code + export/import) shipped; daemon next. Extra auth methods (YubiKey, TOTP, Touch ID/Face ID) deferred |
 | **Step 4** | Planned | Desktop GUI (Tauri) + system tray |
 | **Step 5** | Planned | MCP integration — Claude Code, Cursor, Copilot, VS Code, Aider |
 | **Cloud** | Planned | Anomaly scoring via Claude Haiku — free tier + premium plans |
@@ -212,7 +233,7 @@ flowchart TD
 cargo test
 ```
 
-34 tests covering: roundtrip encryption, wrong-key rejection, bit-flip authentication failure, distinct salts → distinct keys, vault create/open, wrong passphrase, add/get/list/remove, persistence across reopen, tampered `vault.enc` rejected, tampered `meta.yaml` rejected, session unlock/lock/lock-all, passphrase strength checks, audit record/read, rate-limit parsing, the policy engine (capability, tiers, rate limit, burst, unknown caller, fallback mode), and storage-backend metadata roundtrip.
+49 tests covering: roundtrip encryption, wrong-key rejection, bit-flip authentication failure, distinct salts → distinct keys, key-from-bytes roundtrip, vault create/open, open-with-key, re-key, wrong passphrase, add/get/list/remove, persistence across reopen, tampered `vault.enc` rejected, tampered `meta.yaml` rejected, session unlock/lock/lock-all, passphrase strength checks, audit record/read, rate-limit parsing, the policy engine (capability, tiers, rate limit, burst, unknown caller, fallback mode), recovery code write/unlock + wrong-code rejection, full recover-and-rekey roundtrip (old passphrase rejected, secret preserved, code still valid), export-bundle checksum integrity, build→import recreating an openable vault + overwrite rejection, and storage-backend metadata roundtrip.
 
 CI runs the suite on **Ubuntu, Fedora, macOS, and Windows** on every push and pull request.
 
