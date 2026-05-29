@@ -46,6 +46,7 @@ flowchart LR
 | [Security model](docs/security.md) | Crypto, memory safety, what's safe to commit |
 | [Architecture](docs/architecture.md) | How it works, on-disk layout, auth methods |
 | [Roadmap](docs/roadmap.md) | Where Svault is headed |
+| [Changelog](CHANGELOG.md) | What's shipped, version by version |
 
 ---
 
