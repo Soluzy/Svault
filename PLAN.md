@@ -20,6 +20,10 @@
 
 ## Progress
 
+> Shipped versions are tracked in [CHANGELOG.md](CHANGELOG.md); the public-facing
+> roadmap lives in [docs/roadmap.md](docs/roadmap.md). This file is the detailed
+> internal build plan.
+
 ### [DONE] Step 1 — Local encrypted vault
 - [x] `svault create` — interactive setup: storage backend (local default; Soluzy cloud / self-hosted / S3 — placeholders, coming soon) / name / description / allow_agent / rate_limit / auto-lock / auto-lock timer (default 1d) / login method / passphrase (`init` kept as alias)
 - [x] Storage backend recorded in `meta.yaml` (`storage:`) and shown as a `storage:name` prefix in `svault vaults` / `svault status` / TUI; vault names must be unique (duplicate create rejected)
@@ -44,6 +48,11 @@
   - [x] enter → secret browser — `a` add (set), enter/`g` view (get, masked toggle), `d` delete with confirm; requires an unlocked vault
   - [x] Cached session passphrase reused everywhere — no re-prompt while unlocked; `l` from any screen locks and wipes the session
   - [x] Plain-ASCII status line (ok / warning / error / note), context key hints in the footer
+
+#### [DONE] Docs reorganization
+- [x] README rebuilt as a lean landing page — badges, doc index table, collapsible `<details>` sections, Mermaid diagrams (overview, policy pipeline, architecture)
+- [x] Long-form docs split into `docs/` — `installation`, `tui`, `commands`, `policy-engine`, `storage-backends`, `security`, `architecture`, `roadmap`
+- [x] `CHANGELOG.md` added (Keep a Changelog + SemVer)
 
 ### [DONE] Step 2 — Policy engine
 - [x] `svault.policy.yaml` — committable root file defining callers (scopes + rate limit) and per-vault secret scope/tier; `svault policy init` scaffolds it
