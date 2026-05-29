@@ -60,3 +60,30 @@ fn restrict_to_owner(path: &Path) {
 /// Non-Windows, non-Unix targets (none shipped today): nothing to restrict.
 #[cfg(all(not(unix), not(windows)))]
 fn restrict_to_owner(_path: &Path) {}
+
+#[cfg(all(test, unix))]
+mod tests {
+    use super::*;
+    use std::os::unix::fs::PermissionsExt;
+    use tempfile::TempDir;
+
+    #[test]
+    fn writes_files_0600_and_dirs_0700() {
+        let tmp = TempDir::new().unwrap();
+
+        let f = tmp.path().join("secret");
+        write_owner_only(&f, b"x").unwrap();
+        let fmode = std::fs::metadata(&f).unwrap().permissions().mode() & 0o777;
+        assert_eq!(fmode, 0o600, "owner-only file should be 0600");
+
+        let d = tmp.path().join("dir");
+        create_dir_owner_only(&d).unwrap();
+        let dmode = std::fs::metadata(&d).unwrap().permissions().mode() & 0o777;
+        assert_eq!(dmode, 0o700, "owner-only dir should be 0700");
+
+        // Re-writing an existing file keeps it owner-only (truncate path).
+        write_owner_only(&f, b"longer-value").unwrap();
+        let fmode2 = std::fs::metadata(&f).unwrap().permissions().mode() & 0o777;
+        assert_eq!(fmode2, 0o600);
+    }
+}

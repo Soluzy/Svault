@@ -28,6 +28,11 @@ carry-forward (`docs/security-review/findings/0.6.0.md`).
 - **Zeroized secrets in memory** (#6) — passphrase / recovery-code / secret-value prompts and `get_secret`'s return are `Zeroizing<String>`, and the TUI reveal modal holds the secret in `Zeroizing`, so these heap copies are wiped on drop (the bulk decrypted store was already zeroized via `SecretStore`).
 - **Graceful daemon shutdown** (#17) — `SIGTERM`/`SIGINT` now trigger an orderly shutdown that zeroizes keys and cleans up the socket/pid files (instead of an abrupt terminate); `daemon.log` rotates past ~5 MB.
 
+### Internal
+- New `secfile` module (owner-only file/dir writes). Suite now 84 (+ 1 ignored benchmark); `cargo audit`, `cargo fmt`, and `cargo clippy -D warnings` all clean across Linux/macOS/Windows/Fedora CI.
+
+> **Not in this release:** policy enforcement in the daemon + a signed/pinned policy file (#2/#5) — the policy layer remains advisory/audit-only for now and is the next iteration's focus.
+
 ## [0.6.0] - 2026-05-29
 
 Security-hardening release. Acts on the consolidated 0.5.0 review register
