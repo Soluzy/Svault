@@ -14,6 +14,7 @@ use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind};
 use ratatui::widgets::{ListState, TableState};
 use std::path::{Path, PathBuf};
 
+use crate::crypto::VaultKey;
 use crate::meta::{AccessConfig, AllowAgent, LoginMethod, VaultMeta, VaultSettings};
 use crate::session;
 use crate::vault::{list_vault_dirs, Vault, SVAULT_DIR};
@@ -896,7 +897,7 @@ impl App {
 
     /// Open the vault with the cached passphrase and show its secret list.
     fn enter_secrets(&mut self, dir: &Path, name: &str) -> Result<()> {
-        let Some(pass) = session::get_passphrase(dir) else {
+        let Some(key) = session::get_key(dir) else {
             self.screen = Screen::Unlock(UnlockForm {
                 vault_dir: dir.to_path_buf(),
                 name: name.to_string(),
@@ -906,7 +907,7 @@ impl App {
             });
             return Ok(());
         };
-        match Vault::open(dir, &pass) {
+        match Vault::open_with_key(dir, VaultKey::from_bytes(key)) {
             Ok(vault) => {
                 let secrets = vault.list_secret_names().unwrap_or_default();
                 let mut list_state = ListState::default();
@@ -1084,7 +1085,7 @@ impl App {
     }
 
     fn submit_settings(&mut self, mut form: SettingsForm) -> Result<()> {
-        let Some(pass) = session::get_passphrase(&form.vault_dir) else {
+        let Some(key) = session::get_key(&form.vault_dir) else {
             self.set_status(
                 MsgKind::Error,
                 "Vault is locked — unlock before editing settings",
@@ -1092,7 +1093,7 @@ impl App {
             self.screen = Screen::List;
             return Ok(());
         };
-        let vault = match Vault::open(&form.vault_dir, &pass) {
+        let vault = match Vault::open_with_key(&form.vault_dir, VaultKey::from_bytes(key)) {
             Ok(v) => v,
             Err(e) => {
                 form.error = Some(format!("{e}"));
@@ -1143,8 +1144,8 @@ impl App {
                 self.screen = Screen::Unlock(form);
             }
             KeyCode::Enter => match Vault::open(&form.vault_dir, &form.passphrase) {
-                Ok(_) => {
-                    session::unlock(&form.vault_dir, &form.passphrase)?;
+                Ok(vault) => {
+                    session::unlock_with_key(&form.vault_dir, vault.key().bytes())?;
                     crate::usage::human(&form.vault_dir, "unlock", None);
                     self.refresh_vaults();
                     self.set_status(MsgKind::Ok, format!("Vault '{}' unlocked", form.name));
@@ -1251,11 +1252,13 @@ impl App {
         let Some(name) = scr.selected_name() else {
             return;
         };
-        let Some(pass) = session::get_passphrase(&scr.vault_dir) else {
+        let Some(key) = session::get_key(&scr.vault_dir) else {
             self.set_status(MsgKind::Error, "Vault is locked");
             return;
         };
-        match Vault::open(&scr.vault_dir, &pass).and_then(|v| v.get_secret(&name)) {
+        match Vault::open_with_key(&scr.vault_dir, VaultKey::from_bytes(key))
+            .and_then(|v| v.get_secret(&name))
+        {
             Ok(Some(value)) => {
                 crate::usage::human(&scr.vault_dir, "secret.reveal", Some(&name));
                 scr.reveal = Some(Reveal {
@@ -1270,11 +1273,11 @@ impl App {
     }
 
     fn delete_secret(&mut self, scr: &mut SecretScreen, name: &str) {
-        let Some(pass) = session::get_passphrase(&scr.vault_dir) else {
+        let Some(key) = session::get_key(&scr.vault_dir) else {
             self.set_status(MsgKind::Error, "Vault is locked");
             return;
         };
-        match Vault::open(&scr.vault_dir, &pass) {
+        match Vault::open_with_key(&scr.vault_dir, VaultKey::from_bytes(key)) {
             Ok(vault) => match vault.remove_secret(name) {
                 Ok(true) => {
                     scr.secrets = vault.list_secret_names().unwrap_or_default();
@@ -1344,12 +1347,12 @@ impl App {
             self.screen = Screen::SecretAdd(form);
             return Ok(());
         }
-        let Some(pass) = session::get_passphrase(&form.vault_dir) else {
+        let Some(key) = session::get_key(&form.vault_dir) else {
             self.set_status(MsgKind::Error, "Vault is locked");
             self.screen = Screen::List;
             return Ok(());
         };
-        match Vault::open(&form.vault_dir, &pass) {
+        match Vault::open_with_key(&form.vault_dir, VaultKey::from_bytes(key)) {
             Ok(vault) => match vault.add_secret(form.name.trim(), &form.value) {
                 Ok(_) => {
                     crate::usage::human(&form.vault_dir, "secret.add", Some(form.name.trim()));

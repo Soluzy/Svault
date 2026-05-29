@@ -4,8 +4,8 @@
 svault                             # launch the interactive TUI (no subcommand)
 svault create                      # create encrypted vault (name, description, agents, rate limit, auto-lock)
 svault settings [VAULT]            # view or change a vault's settings
-svault unlock   [VAULT]            # unlock vault, cache passphrase for the session
-svault lock     [VAULT]            # clear the cached passphrase
+svault unlock   [VAULT]            # unlock vault, cache derived key for the session
+svault lock     [VAULT]            # clear the cached key
 svault lock     --all              # lock every vault
 svault status                      # show lock state of all vaults
 svault vaults                      # list all vaults with metadata (storage:name prefix)
@@ -92,7 +92,7 @@ postgres://app:s3cr3t@db.internal:5432/billing
 
 ## 2. Unlock once, use all session
 
-`unlock` caches the passphrase so you aren't re-prompted on every read.
+`unlock` caches the vault's derived key (not the passphrase) so you aren't re-prompted on every read.
 
 ```bash
 $ svault unlock billing-api

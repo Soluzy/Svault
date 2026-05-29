@@ -19,6 +19,7 @@ use console::style;
 use dialoguer::{Confirm, Input, Password, Select};
 use std::path::{Path, PathBuf};
 
+use crypto::VaultKey;
 use meta::{AccessConfig, AllowAgent, LoginMethod, VaultMeta, VaultSettings};
 use vault::{list_vault_dirs, Vault, SVAULT_DIR};
 
@@ -363,13 +364,7 @@ fn cmd_settings(vault_name: Option<&str>) -> Result<()> {
     let vault_dir = resolve_vault_dir(vault_name)?;
     let preview = VaultMeta::load_unverified(&vault_dir)?;
 
-    let passphrase = obtain_passphrase(&vault_dir, &preview.name)?;
-    let vault = Vault::open(&vault_dir, &passphrase).map_err(|e| {
-        eprintln!("{} {}", style("error:").red(), e);
-        std::process::exit(1);
-        #[allow(unreachable_code)]
-        e
-    })?;
+    let vault = open_unlocked_or_prompt(&vault_dir, &preview.name)?;
 
     let mut meta = vault.meta.clone();
 
@@ -497,15 +492,16 @@ fn cmd_unlock(vault_name: Option<&str>) -> Result<()> {
         return Ok(());
     }
 
-    // No daemon — fall back to the file session.
-    Vault::open(&vault_dir, &passphrase).map_err(|e| {
+    // No daemon — fall back to the file session, caching the derived key
+    // (never the passphrase) at mode 0600.
+    let vault = Vault::open(&vault_dir, &passphrase).map_err(|e| {
         eprintln!("{} {}", style("error:").red(), e);
         std::process::exit(1);
         #[allow(unreachable_code)]
         e
     })?;
 
-    session::unlock(&vault_dir, &passphrase)?;
+    session::unlock_with_key(&vault_dir, vault.key().bytes())?;
     usage::human(&vault_dir, "unlock", None);
 
     println!(
@@ -515,7 +511,7 @@ fn cmd_unlock(vault_name: Option<&str>) -> Result<()> {
     );
     println!(
         "{}",
-        style("  Session active — passphrase cached in .svault/<name>/.session (mode 0600)").dim()
+        style("  Session active — derived key cached in .svault/<name>/.session (mode 0600, not the passphrase)").dim()
     );
     println!("{}", style("  Run 'svault lock' to clear it.").dim());
     Ok(())
@@ -624,31 +620,15 @@ fn cmd_secret(action: &str, name: Option<&str>, vault_name: Option<&str>) -> Res
         }
     }
 
-    // Use cached passphrase if unlocked, otherwise prompt
-    let passphrase = if session::is_unlocked(&vault_dir) {
-        session::get_passphrase(&vault_dir).unwrap_or_else(|| {
-            Password::new()
-                .with_prompt(format!("  Passphrase for '{}'", meta_preview.name))
-                .interact()
-                .unwrap()
-        })
-    } else {
-        let p = Password::new()
-            .with_prompt(format!("  Passphrase for '{}'", meta_preview.name))
-            .interact()?;
+    // Use the cached session key if unlocked, otherwise prompt for the passphrase.
+    let cached = session::is_unlocked(&vault_dir) && session::get_key(&vault_dir).is_some();
+    let vault = open_unlocked_or_prompt(&vault_dir, &meta_preview.name)?;
+    if !cached {
         println!(
             "{}",
-            style("  Tip: run 'svault unlock' to cache passphrase for this session").dim()
+            style("  Tip: run 'svault unlock' to cache the key for this session").dim()
         );
-        p
-    };
-
-    let vault = Vault::open(&vault_dir, &passphrase).map_err(|e| {
-        eprintln!("{} {}", style("error:").red(), e);
-        std::process::exit(1);
-        #[allow(unreachable_code)]
-        e
-    })?;
+    }
 
     match action {
         "add" => {
@@ -865,13 +845,7 @@ fn cmd_get(
                     client::GetOutcome::NotUnlocked => {}
                 }
             }
-            let passphrase = obtain_passphrase(&vault_dir, &meta.name)?;
-            let vault = Vault::open(&vault_dir, &passphrase).map_err(|e| {
-                eprintln!("{} {}", style("error:").red(), e);
-                std::process::exit(1);
-                #[allow(unreachable_code)]
-                e
-            })?;
+            let vault = open_unlocked_or_prompt(&vault_dir, &meta.name)?;
             match vault.get_secret(name)? {
                 Some(value) => {
                     eprintln!(
@@ -1052,10 +1026,10 @@ fn unlocked_secret_names(vault_dir: &Path) -> Vec<String> {
     if !session::is_unlocked(vault_dir) {
         return vec![];
     }
-    let Some(pass) = session::get_passphrase(vault_dir) else {
+    let Some(key) = session::get_key(vault_dir) else {
         return vec![];
     };
-    Vault::open(vault_dir, &pass)
+    Vault::open_with_key(vault_dir, VaultKey::from_bytes(key))
         .and_then(|v| v.list_secret_names())
         .unwrap_or_default()
 }
@@ -1223,16 +1197,28 @@ fn resolve_vault_dir(vault_name: Option<&str>) -> Result<PathBuf> {
     }
 }
 
-/// Return the cached passphrase if the vault is unlocked, otherwise prompt.
-fn obtain_passphrase(vault_dir: &Path, vault_name: &str) -> Result<String> {
+/// Open a vault for a local (non-daemon) operation, preferring the cached
+/// session *key* so the passphrase is neither re-entered nor stored on disk.
+/// Falls back to a passphrase prompt when the vault is locked or the cached
+/// session is stale/invalid.
+fn open_unlocked_or_prompt(vault_dir: &Path, vault_name: &str) -> Result<Vault> {
     if session::is_unlocked(vault_dir) {
-        if let Some(p) = session::get_passphrase(vault_dir) {
-            return Ok(p);
+        if let Some(key) = session::get_key(vault_dir) {
+            if let Ok(v) = Vault::open_with_key(vault_dir, VaultKey::from_bytes(key)) {
+                return Ok(v);
+            }
+            let _ = session::lock(vault_dir); // stale/invalid cached key — drop it
         }
     }
-    Ok(Password::new()
+    let passphrase = Password::new()
         .with_prompt(format!("  Passphrase for '{vault_name}'"))
-        .interact()?)
+        .interact()?;
+    Vault::open(vault_dir, &passphrase).map_err(|e| {
+        eprintln!("{} {}", style("error:").red(), e);
+        std::process::exit(1);
+        #[allow(unreachable_code)]
+        e
+    })
 }
 
 /// Prompt for agent access. `current` pre-selects the matching choice when editing.
