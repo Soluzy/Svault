@@ -28,7 +28,18 @@ Your task is to conduct a thorough, independent, professional-grade security rev
 **Repository**: https://github.com/Soluzy/Svault
 **Description**: An AI-aware secret manager written in Rust. It sits between AI agents and credentials, enforcing structured requests (scope + reason) and policy controls.
 
-**Important**: Review the **latest version** available in the repository (as of your knowledge cutoff or by inspecting the code directly). Pay special attention to the Unix daemon (added in 0.5.0) and the 0.6.0 security-hardening changes: the file session now caches the derived **key** rather than the passphrase, the daemon has a configurable connection ceiling + per-connection read timeout, the key-store lock recovers from poisoning, and `daemon::send` retries connects. Do not assume these are correct — verify them and look for what they missed.
+**Important**: Review the **latest version** available in the repository (currently **0.7.0**; confirm against `Cargo.toml`). The project has had two dedicated security-hardening releases (0.6.0, 0.7.0). Do **not** take the changes below on trust — verify each one in the code and look for what it missed, bypasses, or weakens elsewhere:
+
+- **Daemon (Unix, 0.5.0+)** — holds keys in memory, served over a `0600` Unix socket; configurable connection ceiling + per-connection read timeout (0.6.0); key-store lock recovers from poisoning; `daemon::send` retries connects.
+- **Socket secrecy (0.7.0, #3)** — the master passphrase is **derived client-side**; only the 32-byte derived key crosses the socket. Check the client (`client.rs`) and daemon (`daemon.rs`) agree and that a wrong passphrase fails locally.
+- **Peer-UID bond (0.7.0, #1)** — the daemon calls `getpeereid`/`SO_PEERCRED` and refuses any peer whose UID ≠ its own. Verify the check is correct on both Linux and macOS and can't be bypassed.
+- **At-rest secrets (0.7.0, #14/#16/#4)** — `recovery.enc`, export bundles, and the `.session` (which caches the derived **key**, not the passphrase, since 0.6.0) are written owner-only (mode `0600` on Unix, an `icacls` ACL on Windows); `.svault/` and vault dirs are `0700`; the socket is bound under a tight umask. Assess the residual at-rest risk (the key file is still key-equivalent) and whether the Windows ACL is robust.
+- **Passphrase entropy floor (0.7.0, #12)** — `create`/`recover` enforce a ~50-bit estimate with a `--force` escape. Judge whether the estimate is sound and the floor meaningful.
+- **Memory zeroization (0.7.0, #6)** — prompts, `get_secret` returns, and the TUI reveal are `Zeroizing`. Look for remaining plaintext residue (serde/transport copies, etc.).
+- **Supply chain (0.7.0, #9/#10/#11)** — a `cargo audit` CI gate, `ratatui` 0.30 (advisories cleared), SHA-256 checksums + SLSA build-provenance attestation on release artifacts.
+- **Graceful shutdown (0.7.0, #17)** — `SIGTERM`/`SIGINT` zeroize keys and clean up.
+
+**Scrutinize especially — the known gap:** the **policy engine is currently advisory, not enforced.** The daemon `Get` path runs no policy/audit check; caller/scope/reason on `svault get` are self-asserted; `svault.policy.yaml` is unsigned and located by an upward directory search. Evaluate how much this undercuts the product's "knows an AI is asking / gates agent access" claim, and whether a same-UID agent can simply bypass the policy layer. Also evaluate the **same-UID trust model** the project documents (it is not a sandbox against a hostile same-UID process) — say whether that boundary is reasonable and clearly communicated.
 
 ### Instructions
 
@@ -49,11 +60,12 @@ Your task is to conduct a thorough, independent, professional-grade security rev
 
 - Cryptographic design and implementation quality
 - Secret handling (memory safety, zeroization, logging, exposure windows)
-- The policy engine for AI/agent access
-- **The Unix daemon (0.5.0+)**: architecture, security properties, limitations, socket model, auto-lock behavior, the connection ceiling / read timeout (0.6.0), and how it changes the previous on-disk risk
-- **Session at rest (0.6.0)**: the file session now stores the derived key (hex, mode 0600), not the passphrase — assess the residual risk (key-equivalent at rest, Windows ACL gap) and whether key-vs-passphrase materially helps
+- **The policy engine for AI/agent access — is it actually enforced?** Trace whether `svault get`'s caller/scope/reason and tiers gate anything at the daemon, or are purely advisory/audit. Assess the unsigned policy file + upward search. This is the headline claim; weigh it honestly.
+- **The Unix daemon (0.5.0+)**: architecture, socket model + `0600`/umask, peer-UID bond (#1), client-side key derivation (#3, passphrase off the socket), connection ceiling / read timeout, poison recovery, auto-lock, graceful shutdown (#17)
+- **Secrets at rest (0.7.0)**: owner-only `.session` (key, not passphrase), `recovery.enc`, export bundles; `0700` dirs; Windows ACL via `icacls` (#4/#14/#16). Assess residual risk (key-equivalent files) and robustness of the Windows path
+- Passphrase strength enforcement (entropy floor + `--force`, #12)
 - Recovery and portability features
-- Supply chain security (dependencies, build & release process, distribution)
+- Supply chain security: the `cargo audit` CI gate, dependency tree, build & release process, checksums + SLSA provenance (#9/#10/#11)
 - Code quality, testing coverage, and attack scenario coverage
 - Operational and infrastructure risks
 - **Dedicated section**: Suitability for servers, CI/CD, build agents, and infrastructure use cases — including the impact of the new daemon on Unix vs. the situation on Windows and other environments
@@ -99,7 +111,7 @@ Your task is to conduct a thorough, independent, professional-grade security rev
 
 ## Recommendations for Corporate Adoption
 
-[Prioritized, actionable, reflecting the current (0.6.0) state]
+[Prioritized, actionable, reflecting the current 0.7.0 state — and say whether policy enforcement (#2/#5) should block a 1.0.0 "stable" label]
 
 ## Overall Risk Assessment by Context
 
@@ -107,7 +119,7 @@ Your task is to conduct a thorough, independent, professional-grade security rev
 
 ## References
 
-- Link to key files in the repo you analyzed (especially daemon.rs, client.rs, security.md, daemon.md)
+- Link to key files in the repo you analyzed (especially `src/daemon.rs`, `src/client.rs`, `src/policy.rs`, `src/secfile.rs`, `src/session.rs`, `docs/security.md`, `docs/daemon.md`, the release/lint workflows, and the prior findings registers under `docs/security-review/findings/`)
 - Any external resources you consulted
 
 Be professional, direct, evidence-based, and balanced. Quote specific code paths or design decisions when they are relevant to your conclusions. Avoid hype or unnecessary negativity.
@@ -126,4 +138,4 @@ Perform this review as if you are presenting it to a company's security committe
 
 ---
 
-**This prompt is intentionally kept current** with Svault’s latest released version and major features (especially the Unix daemon added in 0.5.0) so other models can produce relevant, fresh, and unbiased security reviews.
+**This prompt is intentionally kept current** with Svault’s latest released version (0.7.0) and major features — the Unix daemon (0.5.0), the 0.6.0/0.7.0 security hardening, and the still-advisory policy engine — so other models can produce relevant, fresh, and unbiased security reviews. Update it again when 1.0.0 lands the enforced policy engine.
