@@ -57,7 +57,12 @@ fn load_vaults() -> Vec<VaultRow> {
         .filter_map(|dir| {
             let meta = VaultMeta::load_unverified(&dir).ok()?;
             let unlocked = session::is_unlocked(&dir);
-            Some(VaultRow { name: meta.name, dir, description: meta.description, unlocked })
+            Some(VaultRow {
+                name: meta.name,
+                dir,
+                description: meta.description,
+                unlocked,
+            })
         })
         .collect()
 }
@@ -204,7 +209,9 @@ pub struct SecretScreen {
 
 impl SecretScreen {
     fn selected_name(&self) -> Option<String> {
-        self.list_state.selected().and_then(|i| self.secrets.get(i).cloned())
+        self.list_state
+            .selected()
+            .and_then(|i| self.secrets.get(i).cloned())
     }
 }
 
@@ -243,7 +250,13 @@ impl App {
         if !vaults.is_empty() {
             list_state.select(Some(0));
         }
-        Self { screen: Screen::List, vaults, list_state, status: None, should_quit: false }
+        Self {
+            screen: Screen::List,
+            vaults,
+            list_state,
+            status: None,
+            should_quit: false,
+        }
     }
 
     fn event_loop(&mut self, terminal: &mut ratatui::DefaultTerminal) -> Result<()> {
@@ -261,7 +274,10 @@ impl App {
     // ── Status helpers ──────────────────────────────────────────────────────
 
     fn set_status(&mut self, kind: MsgKind, text: impl Into<String>) {
-        self.status = Some(Status { kind, text: text.into() });
+        self.status = Some(Status {
+            kind,
+            text: text.into(),
+        });
     }
 
     // ── Vault list helpers ────────────────────────────────────────────────────
@@ -271,20 +287,29 @@ impl App {
         if self.vaults.is_empty() {
             self.list_state.select(None);
         } else {
-            let i = self.list_state.selected().unwrap_or(0).min(self.vaults.len() - 1);
+            let i = self
+                .list_state
+                .selected()
+                .unwrap_or(0)
+                .min(self.vaults.len() - 1);
             self.list_state.select(Some(i));
         }
     }
 
     fn selected_vault(&self) -> Option<VaultRow> {
-        self.list_state.selected().and_then(|i| self.vaults.get(i).cloned())
+        self.list_state
+            .selected()
+            .and_then(|i| self.vaults.get(i).cloned())
     }
 
     fn select_next(&mut self) {
         if self.vaults.is_empty() {
             return;
         }
-        let i = self.list_state.selected().map_or(0, |i| (i + 1) % self.vaults.len());
+        let i = self
+            .list_state
+            .selected()
+            .map_or(0, |i| (i + 1) % self.vaults.len());
         self.list_state.select(Some(i));
     }
 
@@ -293,7 +318,10 @@ impl App {
             return;
         }
         let len = self.vaults.len();
-        let i = self.list_state.selected().map_or(0, |i| (i + len - 1) % len);
+        let i = self
+            .list_state
+            .selected()
+            .map_or(0, |i| (i + len - 1) % len);
         self.list_state.select(Some(i));
     }
 
@@ -333,9 +361,14 @@ impl App {
     }
 
     fn unlock_selected(&mut self) -> Result<()> {
-        let Some(v) = self.selected_vault() else { return Ok(()) };
+        let Some(v) = self.selected_vault() else {
+            return Ok(());
+        };
         if v.unlocked {
-            self.set_status(MsgKind::Info, format!("Vault '{}' is already unlocked", v.name));
+            self.set_status(
+                MsgKind::Info,
+                format!("Vault '{}' is already unlocked", v.name),
+            );
         } else {
             self.screen = Screen::Unlock(UnlockForm {
                 vault_dir: v.dir,
@@ -349,9 +382,14 @@ impl App {
     }
 
     fn lock_selected(&mut self) -> Result<()> {
-        let Some(v) = self.selected_vault() else { return Ok(()) };
+        let Some(v) = self.selected_vault() else {
+            return Ok(());
+        };
         if !v.unlocked {
-            self.set_status(MsgKind::Info, format!("Vault '{}' is already locked", v.name));
+            self.set_status(
+                MsgKind::Info,
+                format!("Vault '{}' is already locked", v.name),
+            );
             return Ok(());
         }
         session::lock(&v.dir)?;
@@ -361,7 +399,9 @@ impl App {
     }
 
     fn open_secrets(&mut self) -> Result<()> {
-        let Some(v) = self.selected_vault() else { return Ok(()) };
+        let Some(v) = self.selected_vault() else {
+            return Ok(());
+        };
         if v.unlocked {
             self.enter_secrets(&v.dir, &v.name)?;
         } else {
@@ -377,7 +417,9 @@ impl App {
     }
 
     fn open_settings(&mut self) -> Result<()> {
-        let Some(v) = self.selected_vault() else { return Ok(()) };
+        let Some(v) = self.selected_vault() else {
+            return Ok(());
+        };
         if !v.unlocked {
             self.screen = Screen::Unlock(UnlockForm {
                 vault_dir: v.dir,
@@ -498,7 +540,10 @@ impl App {
         let meta = VaultMeta::new(
             name.clone(),
             form.description.clone(),
-            AccessConfig { allow_agent, rate_limit: form.rate_limit.clone() },
+            AccessConfig {
+                allow_agent,
+                rate_limit: form.rate_limit.clone(),
+            },
             VaultSettings {
                 autolock: form.autolock,
                 autolock_timer: form.autolock_timer.clone(),
@@ -568,7 +613,10 @@ impl App {
 
     fn submit_settings(&mut self, mut form: SettingsForm) -> Result<()> {
         let Some(pass) = session::get_passphrase(&form.vault_dir) else {
-            self.set_status(MsgKind::Error, "Vault is locked — unlock before editing settings");
+            self.set_status(
+                MsgKind::Error,
+                "Vault is locked — unlock before editing settings",
+            );
             self.screen = Screen::List;
             return Ok(());
         };
@@ -602,7 +650,10 @@ impl App {
                 if login_note {
                     self.set_status(
                         MsgKind::Warn,
-                        format!("Settings for '{}' saved (only passphrase is wired today)", form.name),
+                        format!(
+                            "Settings for '{}' saved (only passphrase is wired today)",
+                            form.name
+                        ),
                     );
                 } else {
                     self.set_status(MsgKind::Ok, format!("Settings for '{}' saved", form.name));
@@ -638,7 +689,8 @@ impl App {
                         Pending::Secrets => self.enter_secrets(&form.vault_dir, &form.name)?,
                         Pending::Settings => {
                             let meta = VaultMeta::load_unverified(&form.vault_dir)?;
-                            self.screen = Screen::Settings(SettingsForm::from_meta(form.vault_dir, meta));
+                            self.screen =
+                                Screen::Settings(SettingsForm::from_meta(form.vault_dir, meta));
                         }
                     }
                 }
@@ -730,13 +782,21 @@ impl App {
     }
 
     fn reveal_secret(&mut self, scr: &mut SecretScreen) {
-        let Some(name) = scr.selected_name() else { return };
+        let Some(name) = scr.selected_name() else {
+            return;
+        };
         let Some(pass) = session::get_passphrase(&scr.vault_dir) else {
             self.set_status(MsgKind::Error, "Vault is locked");
             return;
         };
         match Vault::open(&scr.vault_dir, &pass).and_then(|v| v.get_secret(&name)) {
-            Ok(Some(value)) => scr.reveal = Some(Reveal { name, value, masked: true }),
+            Ok(Some(value)) => {
+                scr.reveal = Some(Reveal {
+                    name,
+                    value,
+                    masked: true,
+                })
+            }
             Ok(None) => self.set_status(MsgKind::Error, format!("Secret '{name}' not found")),
             Err(e) => self.set_status(MsgKind::Error, format!("{e}")),
         }
@@ -754,7 +814,12 @@ impl App {
                     let sel = if scr.secrets.is_empty() {
                         None
                     } else {
-                        Some(scr.list_state.selected().unwrap_or(0).min(scr.secrets.len() - 1))
+                        Some(
+                            scr.list_state
+                                .selected()
+                                .unwrap_or(0)
+                                .min(scr.secrets.len() - 1),
+                        )
                     };
                     scr.list_state.select(sel);
                     self.set_status(MsgKind::Ok, format!("Secret '{name}' removed"));
@@ -840,7 +905,10 @@ impl App {
 // ── Free helpers ───────────────────────────────────────────────────────────────
 
 fn parse_agents(raw: &str) -> Vec<String> {
-    raw.split(',').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect()
+    raw.split(',')
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .collect()
 }
 
 fn create_adjust(form: &mut CreateForm, forward: bool) {
@@ -873,7 +941,10 @@ fn secrets_next(scr: &mut SecretScreen) {
     if scr.secrets.is_empty() {
         return;
     }
-    let i = scr.list_state.selected().map_or(0, |i| (i + 1) % scr.secrets.len());
+    let i = scr
+        .list_state
+        .selected()
+        .map_or(0, |i| (i + 1) % scr.secrets.len());
     scr.list_state.select(Some(i));
 }
 

@@ -1,6 +1,6 @@
 # Rust
 target/
-Cargo.lock
+# Cargo.lock is committed — this is a binary crate, so we want reproducible builds.
 
 # Svault user vaults — NEVER commit to public repo
 # Each user creates their own .svault/ directory locally

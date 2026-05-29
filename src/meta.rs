@@ -53,18 +53,13 @@ impl Default for AccessConfig {
 
 /// How a vault is unlocked. Only passphrase is wired today; yubikey and
 /// google_auth are reserved for later steps.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum LoginMethod {
+    #[default]
     Passphrase,
     Yubikey,
     GoogleAuth,
-}
-
-impl Default for LoginMethod {
-    fn default() -> Self {
-        LoginMethod::Passphrase
-    }
 }
 
 impl std::fmt::Display for LoginMethod {
@@ -128,7 +123,12 @@ fn default_version() -> u32 {
 }
 
 impl VaultMeta {
-    pub fn new(name: String, description: String, access: AccessConfig, settings: VaultSettings) -> Self {
+    pub fn new(
+        name: String,
+        description: String,
+        access: AccessConfig,
+        settings: VaultSettings,
+    ) -> Self {
         Self {
             name,
             description,
@@ -181,7 +181,9 @@ fn split_meta(content: &str) -> Result<(&str, &str)> {
     };
     let first_line = &content[..first_newline];
     if !first_line.starts_with("# sig:") {
-        return Err(anyhow!("meta.yaml has no signature — may have been tampered with"));
+        return Err(anyhow!(
+            "meta.yaml has no signature — may have been tampered with"
+        ));
     }
     let sig = &first_line["# sig:".len()..];
     let body = &content[first_newline + 1..];
@@ -192,5 +194,8 @@ fn constant_time_eq(a: &str, b: &str) -> bool {
     if a.len() != b.len() {
         return false;
     }
-    a.bytes().zip(b.bytes()).fold(0u8, |acc, (x, y)| acc | (x ^ y)) == 0
+    a.bytes()
+        .zip(b.bytes())
+        .fold(0u8, |acc, (x, y)| acc | (x ^ y))
+        == 0
 }

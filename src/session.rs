@@ -3,12 +3,8 @@
 /// The passphrase is stored in .svault/<name>/.session (mode 0600).
 /// This is NOT the production daemon — that's Step 3.
 /// Purpose: simulate the unlock-once-use-many-times UX.
-
 use anyhow::Result;
 use std::path::{Path, PathBuf};
-
-#[cfg(unix)]
-use std::os::unix::fs::PermissionsExt;
 
 fn session_path(vault_dir: &Path) -> PathBuf {
     vault_dir.join(".session")
@@ -24,7 +20,9 @@ pub fn unlock(vault_dir: &Path, passphrase: &str) -> Result<()> {
         use std::io::Write;
         use std::os::unix::fs::OpenOptionsExt;
         let mut f = std::fs::OpenOptions::new()
-            .write(true).create(true).truncate(true)
+            .write(true)
+            .create(true)
+            .truncate(true)
             .mode(0o600)
             .open(&path)?;
         f.write_all(passphrase.as_bytes())?;
@@ -56,7 +54,9 @@ pub fn is_unlocked(vault_dir: &Path) -> bool {
 /// Read cached passphrase from session file.
 pub fn get_passphrase(vault_dir: &Path) -> Option<String> {
     let path = session_path(vault_dir);
-    std::fs::read_to_string(&path).ok().map(|s| s.trim().to_string())
+    std::fs::read_to_string(&path)
+        .ok()
+        .map(|s| s.trim().to_string())
 }
 
 /// Lock all vaults in .svault/
@@ -73,4 +73,44 @@ pub fn lock_all(svault_dir: &Path) -> Result<usize> {
         }
     }
     Ok(count)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::TempDir;
+
+    #[test]
+    fn unlock_caches_then_lock_clears() {
+        let dir = TempDir::new().unwrap();
+        let vault_dir = dir.path().join("v");
+        std::fs::create_dir_all(&vault_dir).unwrap();
+
+        assert!(!is_unlocked(&vault_dir));
+
+        unlock(&vault_dir, "my-pass").unwrap();
+        assert!(is_unlocked(&vault_dir));
+        assert_eq!(get_passphrase(&vault_dir).as_deref(), Some("my-pass"));
+
+        lock(&vault_dir).unwrap();
+        assert!(!is_unlocked(&vault_dir));
+        assert_eq!(get_passphrase(&vault_dir), None);
+    }
+
+    #[test]
+    fn lock_all_locks_every_unlocked_vault() {
+        let svault = TempDir::new().unwrap();
+        let a = svault.path().join("a");
+        let b = svault.path().join("b");
+        std::fs::create_dir_all(&a).unwrap();
+        std::fs::create_dir_all(&b).unwrap();
+        unlock(&a, "pa").unwrap();
+        unlock(&b, "pb").unwrap();
+
+        assert_eq!(lock_all(svault.path()).unwrap(), 2);
+        assert!(!is_unlocked(&a));
+        assert!(!is_unlocked(&b));
+        // Nothing left to lock the second time.
+        assert_eq!(lock_all(svault.path()).unwrap(), 0);
+    }
 }

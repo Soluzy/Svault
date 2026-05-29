@@ -2,9 +2,9 @@ use aes_gcm::{
     aead::{Aead, AeadCore, KeyInit, OsRng},
     Aes256Gcm, Key, Nonce,
 };
+use anyhow::{anyhow, Result};
 use argon2::{Algorithm, Argon2, Params, Version};
 use zeroize::{Zeroize, ZeroizeOnDrop};
-use anyhow::{anyhow, Result};
 
 pub const SALT_SIZE: usize = 32;
 pub const NONCE_SIZE: usize = 12;
@@ -116,7 +116,10 @@ mod tests {
         ciphertext[flip_pos] ^= 0xFF;
 
         let result = decrypt(&key, &ciphertext);
-        assert!(result.is_err(), "tampered ciphertext should fail authentication");
+        assert!(
+            result.is_err(),
+            "tampered ciphertext should fail authentication"
+        );
     }
 
     #[test]

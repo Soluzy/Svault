@@ -19,7 +19,11 @@ const DIM: Color = Color::DarkGray;
 pub fn draw(frame: &mut Frame, app: &mut App) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([Constraint::Length(3), Constraint::Min(0), Constraint::Length(3)])
+        .constraints([
+            Constraint::Length(3),
+            Constraint::Min(0),
+            Constraint::Length(3),
+        ])
         .split(frame.area());
 
     draw_header(frame, chunks[0], app);
@@ -68,7 +72,9 @@ fn draw_header(frame: &mut Frame, area: Rect, app: &App) {
         ));
     }
 
-    let block = Block::default().borders(Borders::ALL).border_style(Style::default().fg(DIM));
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(DIM));
     let p = Paragraph::new(Line::from(spans)).block(block);
     frame.render_widget(p, area);
 }
@@ -77,9 +83,15 @@ fn draw_header(frame: &mut Frame, area: Rect, app: &App) {
 
 fn draw_footer(frame: &mut Frame, area: Rect, screen: &Screen) {
     let hint = match screen {
-        Screen::List => "↑/↓ move   enter open   c create   u unlock   l lock   s settings   q quit",
-        Screen::Create(_) => "↑/↓ field   ←/→ change   space toggle   enter next/create   esc cancel",
-        Screen::Settings(_) => "↑/↓ field   ←/→ change   space toggle   enter next/save   esc cancel",
+        Screen::List => {
+            "↑/↓ move   enter open   c create   u unlock   l lock   s settings   q quit"
+        }
+        Screen::Create(_) => {
+            "↑/↓ field   ←/→ change   space toggle   enter next/create   esc cancel"
+        }
+        Screen::Settings(_) => {
+            "↑/↓ field   ←/→ change   space toggle   enter next/save   esc cancel"
+        }
         Screen::Unlock(_) => "type passphrase   enter unlock   esc cancel",
         Screen::Secrets(scr) => {
             if scr.reveal.is_some() {
@@ -92,7 +104,9 @@ fn draw_footer(frame: &mut Frame, area: Rect, screen: &Screen) {
         }
         Screen::SecretAdd(_) => "↑/↓ field   enter next/save   esc cancel",
     };
-    let block = Block::default().borders(Borders::ALL).border_style(Style::default().fg(DIM));
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(DIM));
     let p = Paragraph::new(Span::styled(hint, Style::default().fg(DIM))).block(block);
     frame.render_widget(p, area);
 }
@@ -114,7 +128,10 @@ fn draw_list(
         let p = Paragraph::new(vec![
             Line::from(""),
             Line::from(Span::styled("  No vaults yet.", Style::default().fg(DIM))),
-            Line::from(Span::styled("  Press 'c' to create your first vault.", Style::default().fg(DIM))),
+            Line::from(Span::styled(
+                "  Press 'c' to create your first vault.",
+                Style::default().fg(DIM),
+            )),
         ])
         .block(block);
         frame.render_widget(p, area);
@@ -129,7 +146,11 @@ fn draw_list(
             } else {
                 ("locked  ", Style::default().fg(DIM))
             };
-            let desc = if v.description.is_empty() { "-" } else { v.description.as_str() };
+            let desc = if v.description.is_empty() {
+                "-"
+            } else {
+                v.description.as_str()
+            };
             ListItem::new(Line::from(vec![
                 Span::styled(format!("{:<20}", v.name), Style::default().fg(CYAN)),
                 Span::styled(format!("{badge}  "), badge_style),
@@ -151,7 +172,10 @@ fn allow_label(mode: usize, list: &str) -> String {
     match mode {
         0 => "all agents".to_string(),
         1 => "none".to_string(),
-        _ => format!("specific list  ({})", if list.is_empty() { "—" } else { list }),
+        _ => format!(
+            "specific list  ({})",
+            if list.is_empty() { "—" } else { list }
+        ),
     }
 }
 
@@ -204,8 +228,18 @@ fn draw_create(frame: &mut Frame, area: Rect, form: &CreateForm) {
     let fields = [
         ("Name", form.name.clone()),
         ("Description", form.description.clone()),
-        ("Allow agent", allow_label(form.allow_mode, &form.allow_list)),
-        ("Agent list", if form.allow_list.is_empty() { "—".into() } else { form.allow_list.clone() }),
+        (
+            "Allow agent",
+            allow_label(form.allow_mode, &form.allow_list),
+        ),
+        (
+            "Agent list",
+            if form.allow_list.is_empty() {
+                "—".into()
+            } else {
+                form.allow_list.clone()
+            },
+        ),
         ("Rate limit", form.rate_limit.clone()),
         ("Auto-lock", yes_no(form.autolock).to_string()),
         ("Auto-lock timer", form.autolock_timer.clone()),
@@ -216,20 +250,38 @@ fn draw_create(frame: &mut Frame, area: Rect, form: &CreateForm) {
     let mut lines = field_lines(&fields, form.focus);
     if let Some(err) = &form.error {
         lines.push(Line::from(""));
-        lines.push(Line::from(Span::styled(format!("  error: {err}"), Style::default().fg(Color::Red))));
+        lines.push(Line::from(Span::styled(
+            format!("  error: {err}"),
+            Style::default().fg(Color::Red),
+        )));
     }
     let block = Block::default()
         .borders(Borders::ALL)
         .title(" Create vault ")
         .border_style(Style::default().fg(DIM));
-    frame.render_widget(Paragraph::new(lines).block(block).wrap(Wrap { trim: false }), area);
+    frame.render_widget(
+        Paragraph::new(lines)
+            .block(block)
+            .wrap(Wrap { trim: false }),
+        area,
+    );
 }
 
 fn draw_settings(frame: &mut Frame, area: Rect, form: &SettingsForm) {
     let fields = [
         ("Description", form.description.clone()),
-        ("Allow agent", allow_label(form.allow_mode, &form.allow_list)),
-        ("Agent list", if form.allow_list.is_empty() { "—".into() } else { form.allow_list.clone() }),
+        (
+            "Allow agent",
+            allow_label(form.allow_mode, &form.allow_list),
+        ),
+        (
+            "Agent list",
+            if form.allow_list.is_empty() {
+                "—".into()
+            } else {
+                form.allow_list.clone()
+            },
+        ),
         ("Rate limit", form.rate_limit.clone()),
         ("Auto-lock", yes_no(form.autolock).to_string()),
         ("Auto-lock timer", form.autolock_timer.clone()),
@@ -238,30 +290,43 @@ fn draw_settings(frame: &mut Frame, area: Rect, form: &SettingsForm) {
     let mut lines = field_lines(&fields, form.focus);
     if let Some(err) = &form.error {
         lines.push(Line::from(""));
-        lines.push(Line::from(Span::styled(format!("  error: {err}"), Style::default().fg(Color::Red))));
+        lines.push(Line::from(Span::styled(
+            format!("  error: {err}"),
+            Style::default().fg(Color::Red),
+        )));
     }
     let block = Block::default()
         .borders(Borders::ALL)
         .title(format!(" Settings · {} ", form.name))
         .border_style(Style::default().fg(DIM));
-    frame.render_widget(Paragraph::new(lines).block(block).wrap(Wrap { trim: false }), area);
+    frame.render_widget(
+        Paragraph::new(lines)
+            .block(block)
+            .wrap(Wrap { trim: false }),
+        area,
+    );
 }
 
 fn draw_secret_add(frame: &mut Frame, area: Rect, form: &SecretAddForm) {
-    let fields = [
-        ("Name", form.name.clone()),
-        ("Value", mask(&form.value)),
-    ];
+    let fields = [("Name", form.name.clone()), ("Value", mask(&form.value))];
     let mut lines = field_lines(&fields, form.focus);
     if let Some(err) = &form.error {
         lines.push(Line::from(""));
-        lines.push(Line::from(Span::styled(format!("  error: {err}"), Style::default().fg(Color::Red))));
+        lines.push(Line::from(Span::styled(
+            format!("  error: {err}"),
+            Style::default().fg(Color::Red),
+        )));
     }
     let block = Block::default()
         .borders(Borders::ALL)
         .title(format!(" Add secret · {} ", form.vault_name))
         .border_style(Style::default().fg(DIM));
-    frame.render_widget(Paragraph::new(lines).block(block).wrap(Wrap { trim: false }), area);
+    frame.render_widget(
+        Paragraph::new(lines)
+            .block(block)
+            .wrap(Wrap { trim: false }),
+        area,
+    );
 }
 
 // ── Unlock ─────────────────────────────────────────────────────────────────────
@@ -271,17 +336,26 @@ fn draw_unlock(frame: &mut Frame, area: Rect, form: &UnlockForm) {
         Line::from(""),
         Line::from(vec![
             Span::raw("  Passphrase for "),
-            Span::styled(form.name.clone(), Style::default().fg(CYAN).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                form.name.clone(),
+                Style::default().fg(CYAN).add_modifier(Modifier::BOLD),
+            ),
         ]),
         Line::from(""),
         Line::from(vec![
             Span::raw("  > "),
-            Span::styled(mask(&form.passphrase), Style::default().add_modifier(Modifier::BOLD)),
+            Span::styled(
+                mask(&form.passphrase),
+                Style::default().add_modifier(Modifier::BOLD),
+            ),
         ]),
     ];
     if let Some(err) = &form.error {
         lines.push(Line::from(""));
-        lines.push(Line::from(Span::styled(format!("  {err}"), Style::default().fg(Color::Red))));
+        lines.push(Line::from(Span::styled(
+            format!("  {err}"),
+            Style::default().fg(Color::Red),
+        )));
     }
     let block = Block::default()
         .borders(Borders::ALL)
@@ -302,7 +376,10 @@ fn draw_secrets(frame: &mut Frame, area: Rect, scr: &mut SecretScreen) {
         let p = Paragraph::new(vec![
             Line::from(""),
             Line::from(Span::styled("  No secrets yet.", Style::default().fg(DIM))),
-            Line::from(Span::styled("  Press 'a' to add one.", Style::default().fg(DIM))),
+            Line::from(Span::styled(
+                "  Press 'a' to add one.",
+                Style::default().fg(DIM),
+            )),
         ])
         .block(block);
         frame.render_widget(p, area);
@@ -321,18 +398,32 @@ fn draw_secrets(frame: &mut Frame, area: Rect, scr: &mut SecretScreen) {
 
     // Reveal modal.
     if let Some(reveal) = &scr.reveal {
-        let value = if reveal.masked { mask(&reveal.value) } else { reveal.value.clone() };
+        let value = if reveal.masked {
+            mask(&reveal.value)
+        } else {
+            reveal.value.clone()
+        };
         let lines = vec![
             Line::from(""),
             Line::from(vec![
                 Span::raw("  "),
-                Span::styled(reveal.name.clone(), Style::default().fg(CYAN).add_modifier(Modifier::BOLD)),
+                Span::styled(
+                    reveal.name.clone(),
+                    Style::default().fg(CYAN).add_modifier(Modifier::BOLD),
+                ),
             ]),
             Line::from(""),
-            Line::from(Span::styled(format!("  {value}"), Style::default().add_modifier(Modifier::BOLD))),
+            Line::from(Span::styled(
+                format!("  {value}"),
+                Style::default().add_modifier(Modifier::BOLD),
+            )),
             Line::from(""),
             Line::from(Span::styled(
-                if reveal.masked { "  (hidden — press space to reveal)" } else { "  (press space to hide)" },
+                if reveal.masked {
+                    "  (hidden — press space to reveal)"
+                } else {
+                    "  (press space to hide)"
+                },
                 Style::default().fg(DIM),
             )),
         ];
@@ -342,7 +433,12 @@ fn draw_secrets(frame: &mut Frame, area: Rect, scr: &mut SecretScreen) {
             .borders(Borders::ALL)
             .title(" Secret value ")
             .border_style(Style::default().fg(CYAN));
-        frame.render_widget(Paragraph::new(lines).block(block).wrap(Wrap { trim: false }), popup);
+        frame.render_widget(
+            Paragraph::new(lines)
+                .block(block)
+                .wrap(Wrap { trim: false }),
+            popup,
+        );
     }
 
     // Delete confirmation modal.
@@ -351,11 +447,17 @@ fn draw_secrets(frame: &mut Frame, area: Rect, scr: &mut SecretScreen) {
             Line::from(""),
             Line::from(vec![
                 Span::raw("  Delete secret "),
-                Span::styled(name.clone(), Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)),
+                Span::styled(
+                    name.clone(),
+                    Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
+                ),
                 Span::raw("?"),
             ]),
             Line::from(""),
-            Line::from(Span::styled("  y = delete    n / esc = cancel", Style::default().fg(DIM))),
+            Line::from(Span::styled(
+                "  y = delete    n / esc = cancel",
+                Style::default().fg(DIM),
+            )),
         ];
         let popup = centered_rect(50, 30, area);
         frame.render_widget(Clear, popup);
@@ -363,7 +465,12 @@ fn draw_secrets(frame: &mut Frame, area: Rect, scr: &mut SecretScreen) {
             .borders(Borders::ALL)
             .title(" Confirm delete ")
             .border_style(Style::default().fg(Color::Red));
-        frame.render_widget(Paragraph::new(lines).block(block).alignment(Alignment::Left), popup);
+        frame.render_widget(
+            Paragraph::new(lines)
+                .block(block)
+                .alignment(Alignment::Left),
+            popup,
+        );
     }
 }
 
