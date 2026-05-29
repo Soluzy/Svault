@@ -11,9 +11,18 @@ RECOVERY CODE — store it now:
 A38A-1E39-B17B-9661-415F-54C9-5B60-C6F2-BDAB-E65F
 ```
 
-This is 160 bits of randomness. Svault wraps the vault key under a key derived from this code (Argon2id) and stores the result in `recovery.enc` next to `vault.enc`. The code is **shown once** — write it down or store it in a password manager.
+This is 160 bits of randomness. Svault wraps the vault key under a key derived from this code (Argon2id) and stores the result in `recovery.enc` next to `vault.enc`.
 
 Because `recovery.enc` is only useful with the code, it is as safe to commit (and to ship in an export) as `vault.enc`.
+
+### Storing the code — read this
+
+The code is a **second key to your vault**, equal in power to the passphrase. Treat it that way:
+
+- It is **printed once at create time and never again** — Svault does not keep a plaintext copy anywhere. If you lose both the passphrase and the code, the vault is unrecoverable by design.
+- **Do** save it in a password manager, or write it on paper kept offline (a safe, a sealed envelope).
+- **Don't** paste it into a chat, ticket, email, shell history, or a plaintext file in the repo. Anyone with the code can re-key the vault.
+- It is **not** the same as your passphrase — store it separately, so one leak doesn't expose both.
 
 ### Resetting a lost passphrase
 
@@ -45,3 +54,7 @@ svault import <FILE>
 `import` verifies the checksum, then recreates `.svault/<name>/`. It **refuses** to overwrite an existing vault of the same name (names are unique). The restored vault opens with its original passphrase — or with `svault recover` if the bundle carried a `recovery.enc`.
 
 A corrupted bundle (any altered file) fails the checksum check and is rejected before anything is written.
+
+### Portability
+
+The bundle is **fully self-contained** — it carries no machine-specific state (no absolute paths, hostnames, or user IDs), so a vault exported on one machine imports cleanly on another. The only requirement is the **same major Svault version** on both ends, since the key derivation parameters (Argon2id cost) are fixed per release.

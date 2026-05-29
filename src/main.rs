@@ -285,19 +285,21 @@ fn cmd_create(name_arg: Option<String>) -> Result<()> {
     );
 
     println!();
-    println!(
-        "{}",
-        style("  RECOVERY CODE — store it now:").yellow().bold()
-    );
+    println!("{}", style("  RECOVERY CODE").yellow().bold());
     println!("  {}", style(&recovery_code).bold());
     println!(
         "{}",
-        style("  This is the only way back in if you lose your passphrase. It is not shown again.")
-            .dim()
+        style("  This is the ONLY time this code is shown — it is not stored in plaintext.")
+            .yellow()
     );
     println!(
         "{}",
-        style("  Run 'svault recover' with this code to reset a lost passphrase.").dim()
+        style("  Save it now in a password manager (or on paper, offline).").dim()
+    );
+    println!(
+        "{}",
+        style("  It is the only way back in if you lose your passphrase — run 'svault recover'.")
+            .dim()
     );
     Ok(())
 }
