@@ -99,13 +99,14 @@ the vault's `allow_agent` / `rate_limit` in `meta.yaml`.
 
 ## The AI judge
 
-See [security.md](security.md#ai-judge) for setup. In short: configure an
-OpenRouter key (`$SVAULT_OPENROUTER_KEY` or a `0600` key file), enable the judge
-in `.svault/config.yaml` (or per vault at create time), and the daemon will score
-the `reason` on every medium/high request. Verify your setup without touching a
-secret:
+See [security.md](security.md#ai-judge) for setup. In short: store an OpenRouter
+key with `svault judge set-key` (or set `$SVAULT_OPENROUTER_KEY`), enable the
+judge in `.svault/config.yaml` (or per vault at create time), and the daemon will
+score the `reason` on every medium/high request. Verify your setup without
+touching a secret:
 
 ```bash
+svault judge set-key                                                              # store the key 0600
 svault judge test --reason "run the nightly database migration" --scope database --tier high
 ```
 

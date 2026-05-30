@@ -152,9 +152,13 @@ enum Commands {
         #[arg(long)]
         fix: bool,
     },
-    /// Test the AI judge against a sample request (verifies model + key setup).
+    /// AI judge: manage the OpenRouter key and test it.
+    ///
+    /// Actions: `set-key` (store the key as a 0600 file), `status` (show where
+    /// the key resolves from + model config), `remove-key` (delete the file),
+    /// `test` (dry-run a sample request against the model).
     Judge {
-        /// Action: test
+        /// set-key | status | remove-key | test
         action: String,
         #[arg(long)]
         reason: Option<String>,
@@ -1557,8 +1561,8 @@ fn prompt_tier(default: policy::Tier) -> Result<policy::Tier> {
     })
 }
 
-/// `svault judge test` — dry-run the configured model/key against a sample
-/// request so you can verify OpenRouter setup without touching a real secret.
+/// `svault judge <action>` — manage the OpenRouter key (`set-key` / `status` /
+/// `remove-key`) and dry-run the configured model with `test`.
 fn cmd_judge(
     action: &str,
     reason: Option<&str>,
@@ -1567,14 +1571,126 @@ fn cmd_judge(
     caller: &str,
     tier: &str,
 ) -> Result<()> {
-    if action != "test" {
-        eprintln!(
-            "{} Unknown action '{}'. Use: test",
-            style("error:").red(),
-            action
-        );
+    match action {
+        "test" => cmd_judge_test(reason, scope, secret, caller, tier),
+        "set-key" | "set" => cmd_judge_set_key(),
+        "status" | "key" | "key-status" => cmd_judge_status(),
+        "remove-key" | "remove" | "unset" => cmd_judge_remove_key(),
+        other => {
+            eprintln!(
+                "{} Unknown action '{}'. Use: set-key | status | remove-key | test",
+                style("error:").red(),
+                other
+            );
+            std::process::exit(1);
+        }
+    }
+}
+
+/// `svault judge set-key` — prompt for the OpenRouter key (hidden) and store it
+/// as a `0600` file at `~/.config/svault/openrouter.key`. The key is never
+/// echoed and never written to config.
+fn cmd_judge_set_key() -> Result<()> {
+    use std::io::IsTerminal;
+    let cfg = config::SvaultConfig::load();
+    // Interactive at a TTY → hidden prompt. Piped (e.g. `echo $KEY | svault
+    // judge set-key`) → read the key from stdin so it stays out of the shell
+    // history / argv.
+    let key = if std::io::stdin().is_terminal() {
+        Password::new()
+            .with_prompt("  OpenRouter API key (sk-or-...)")
+            .interact()?
+    } else {
+        let mut buf = String::new();
+        std::io::Read::read_to_string(&mut std::io::stdin(), &mut buf)?;
+        buf
+    };
+    let key = key.trim().to_string();
+    if key.is_empty() {
+        eprintln!("{} empty key — nothing written", style("error:").red());
         std::process::exit(1);
     }
+    let path = config::set_openrouter_key(&cfg.judge, &key)?;
+    println!(
+        "{} stored OpenRouter key at {} (0600)",
+        style("ok:").green().bold(),
+        path.display()
+    );
+    if std::env::var(config::KEY_ENV).is_ok() {
+        println!(
+            "  note: ${} is also set and takes precedence over the file",
+            config::KEY_ENV
+        );
+    }
+    println!("  verify it with: svault judge test");
+    Ok(())
+}
+
+/// `svault judge status` — show where the key resolves from (without revealing
+/// it) plus the active model/threshold config.
+fn cmd_judge_status() -> Result<()> {
+    let cfg = config::SvaultConfig::load();
+    let j = &cfg.judge;
+    println!(
+        "{} enabled={} model={} (allow≥{}, high≥{}) timeout={}s",
+        style("judge:").bold().cyan(),
+        j.enabled,
+        j.model,
+        j.allow_threshold,
+        j.high_threshold,
+        j.timeout_secs
+    );
+    match config::key_source(j) {
+        config::KeySource::Env => println!(
+            "  key: from ${} (environment)",
+            style(config::KEY_ENV).green()
+        ),
+        config::KeySource::File(p) => {
+            println!("  key: {} ({})", style("present").green(), p.display())
+        }
+        config::KeySource::None => {
+            let path = config::key_file_path(j)
+                .map(|p| p.display().to_string())
+                .unwrap_or_else(|| "~/.config/svault/openrouter.key".to_string());
+            println!(
+                "  key: {} — run `svault judge set-key`",
+                style("none").red()
+            );
+            println!("       (would be stored at {path})");
+        }
+    }
+    Ok(())
+}
+
+/// `svault judge remove-key` — delete the stored key file.
+fn cmd_judge_remove_key() -> Result<()> {
+    let cfg = config::SvaultConfig::load();
+    match config::remove_openrouter_key(&cfg.judge)? {
+        Some(path) => println!(
+            "{} removed key file {}",
+            style("ok:").green().bold(),
+            path.display()
+        ),
+        None => println!("{} no key file to remove", style("note:").dim()),
+    }
+    if std::env::var(config::KEY_ENV).is_ok() {
+        println!(
+            "  note: ${} is still set in your environment",
+            config::KEY_ENV
+        );
+    }
+    Ok(())
+}
+
+/// `svault judge test` — dry-run the configured model/key against a sample
+/// request so you can verify OpenRouter setup without touching a real secret.
+fn cmd_judge_test(
+    reason: Option<&str>,
+    scope: &str,
+    secret: &str,
+    caller: &str,
+    tier: &str,
+) -> Result<()> {
     let reason = reason.unwrap_or("run the nightly database migration to apply pending changes");
     let cfg = config::SvaultConfig::load();
     // Attempt regardless of the global on/off toggle — the point is to verify the
@@ -1587,7 +1703,7 @@ fn cmd_judge(
             style("error:").red().bold()
         );
         eprintln!(
-            "  Set ${} in the environment, or create a 0600 ~/.config/svault/openrouter.key",
+            "  Run `svault judge set-key`, or set ${} in the environment.",
             config::KEY_ENV
         );
         std::process::exit(1);

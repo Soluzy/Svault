@@ -43,9 +43,14 @@ Configure `[judge]` in `.svault/config.yaml`; the key comes from
 `$SVAULT_OPENROUTER_KEY` or a `0600` key file (never committable config).
 
 ```bash
-export SVAULT_OPENROUTER_KEY=sk-or-...
+svault judge set-key      # prompt for the key, store it 0600 (or: echo $KEY | svault judge set-key)
+svault judge status       # show where the key resolves from + model config (never prints the key)
 svault judge test --reason "run the nightly migration" --scope database --tier high
+svault judge remove-key   # delete the stored key file
 ```
+
+`set-key` writes `~/.config/svault/openrouter.key` (mode `0600`). If
+`$SVAULT_OPENROUTER_KEY` is set it takes precedence over the file.
 
 ## Recovery & portability
 
@@ -139,7 +144,7 @@ $ svault policy init
 $ svault policy check claude
 
 # (optional) turn the AI judge on for this machine:
-$ export SVAULT_OPENROUTER_KEY=sk-or-...   # enable [judge] in .svault/config.yaml
+$ svault judge set-key                     # store the OpenRouter key; enable [judge] in .svault/config.yaml
 
 # The agent's request (this is the line an agent runs):
 $ svault get DATABASE_URL \

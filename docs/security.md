@@ -56,9 +56,12 @@ judge:
 
 The **API key never lives in config**. It comes from `$SVAULT_OPENROUTER_KEY`,
 falling back to a `0600` key file (`~/.config/svault/openrouter.key`, or
-`key_file:`). On a server, export the env var where the daemon starts. The judge
-is **off until a key is available**, so upgrading never silently calls out. Verify
-with `svault judge test`. Failure modes are tier-dependent: medium **fails open**
+`key_file:`). Store the file with `svault judge set-key` (it prompts hidden, or
+accepts the key on stdin, and writes `0600`); `svault judge status` shows where
+the key resolves from without printing it, and `svault judge remove-key` deletes
+it. On a server, export the env var where the daemon starts. The judge is **off
+until a key is available**, so upgrading never silently calls out. Verify with
+`svault judge test`. Failure modes are tier-dependent: medium **fails open**
 (allow + `judge-unavailable` audit flag), high **fails closed** (deny).
 
 ## Threat model notes
