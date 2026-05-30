@@ -82,8 +82,9 @@ and verify — no secret is touched:
 ```bash
 svault judge set-key        # paste the key (hidden), or: echo "$KEY" | svault judge set-key
 svault judge status         # confirm: key present + model/thresholds
-# Dry-run — pass --description to see how a secret's purpose sways the verdict:
+# Dry-run — pass a realistic --vault and the descriptions to see how they sway it:
 svault judge test --reason "run the nightly db migration" --scope database --tier high \
+  --vault billing-api --vault-description "production billing service" \
   --description "production Postgres connection string"
 ```
 

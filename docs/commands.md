@@ -49,9 +49,15 @@ Configure `[judge]` in `.svault/config.yaml`; the key comes from
 svault judge set-key      # prompt for the key, store it 0600 (or: echo $KEY | svault judge set-key)
 svault judge status       # show where the key resolves from + model config (never prints the key)
 svault judge test --reason "run the nightly migration" --scope database --tier high \
-  --description "production Postgres connection string"   # --description is optional
+  --vault billing-api --vault-description "production billing service" \
+  --description "production Postgres connection string"   # --vault/--description optional
 svault judge remove-key   # delete the stored key file
 ```
+
+`judge test` builds a sample request and asks the live model — nothing is read or
+written. Pass a realistic `--vault` name: the model sees it, so a default like
+`test` can make it (correctly) distrust a "production" reason. `--description`
+(secret purpose) and `--vault-description` let you preview how those sway the verdict.
 
 `set-key` writes `~/.config/svault/openrouter.key` (mode `0600`). If
 `$SVAULT_OPENROUTER_KEY` is set it takes precedence over the file.

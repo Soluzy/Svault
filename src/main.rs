@@ -177,6 +177,13 @@ enum Commands {
         /// (test) Sample secret purpose — context the judge weighs against the reason.
         #[arg(long)]
         description: Option<String>,
+        /// (test) Vault name the request is against (the model sees it; avoid
+        /// misleading names like "test" for production secrets).
+        #[arg(long, default_value = "demo-vault")]
+        vault: String,
+        /// (test) Sample vault purpose — overall context for the judge.
+        #[arg(long)]
+        vault_description: Option<String>,
     },
 }
 
@@ -238,14 +245,20 @@ fn main() -> Result<()> {
             caller,
             tier,
             description,
+            vault,
+            vault_description,
         } => cmd_judge(
             &action,
-            reason.as_deref(),
-            &scope,
-            &secret,
-            &caller,
-            &tier,
-            description.as_deref(),
+            JudgeTestArgs {
+                reason: reason.as_deref(),
+                scope: &scope,
+                secret: &secret,
+                caller: &caller,
+                tier: &tier,
+                description: description.as_deref(),
+                vault: &vault,
+                vault_description: vault_description.as_deref(),
+            },
         ),
     }
 }
@@ -1589,19 +1602,24 @@ fn prompt_tier(default: policy::Tier) -> Result<policy::Tier> {
     })
 }
 
+/// Sample request for `svault judge test` — everything the dry-run feeds the
+/// model. Bundled so the command functions stay under the argument limit.
+struct JudgeTestArgs<'a> {
+    reason: Option<&'a str>,
+    scope: &'a str,
+    secret: &'a str,
+    caller: &'a str,
+    tier: &'a str,
+    description: Option<&'a str>,
+    vault: &'a str,
+    vault_description: Option<&'a str>,
+}
+
 /// `svault judge <action>` — manage the OpenRouter key (`set-key` / `status` /
 /// `remove-key`) and dry-run the configured model with `test`.
-fn cmd_judge(
-    action: &str,
-    reason: Option<&str>,
-    scope: &str,
-    secret: &str,
-    caller: &str,
-    tier: &str,
-    description: Option<&str>,
-) -> Result<()> {
+fn cmd_judge(action: &str, t: JudgeTestArgs) -> Result<()> {
     match action {
-        "test" => cmd_judge_test(reason, scope, secret, caller, tier, description),
+        "test" => cmd_judge_test(t),
         "set-key" | "set" => cmd_judge_set_key(),
         "status" | "key" | "key-status" => cmd_judge_status(),
         "remove-key" | "remove" | "unset" => cmd_judge_remove_key(),
@@ -1713,15 +1731,10 @@ fn cmd_judge_remove_key() -> Result<()> {
 
 /// `svault judge test` — dry-run the configured model/key against a sample
 /// request so you can verify OpenRouter setup without touching a real secret.
-fn cmd_judge_test(
-    reason: Option<&str>,
-    scope: &str,
-    secret: &str,
-    caller: &str,
-    tier: &str,
-    description: Option<&str>,
-) -> Result<()> {
-    let reason = reason.unwrap_or("run the nightly database migration to apply pending changes");
+fn cmd_judge_test(t: JudgeTestArgs) -> Result<()> {
+    let reason = t
+        .reason
+        .unwrap_or("run the nightly database migration to apply pending changes");
     let cfg = config::SvaultConfig::load();
     // Attempt regardless of the global on/off toggle — the point is to verify the
     // model + key plumbing works.
@@ -1738,7 +1751,7 @@ fn cmd_judge_test(
         );
         std::process::exit(1);
     };
-    let tier_enum = parse_tier(tier);
+    let tier_enum = parse_tier(t.tier);
     println!(
         "{} model={} tier={tier_enum} (allow≥{}, high≥{})",
         style("judge:").bold().cyan(),
@@ -1748,14 +1761,14 @@ fn cmd_judge_test(
     );
     let model = rt.model.clone();
     let ctx = judge::JudgeContext {
-        caller,
-        scope,
+        caller: t.caller,
+        scope: t.scope,
         reason,
-        secret,
-        vault_description: "",
-        secret_description: description.unwrap_or(""),
+        secret: t.secret,
+        vault_description: t.vault_description.unwrap_or(""),
+        secret_description: t.description.unwrap_or(""),
         tier: tier_enum,
-        vault: "test",
+        vault: t.vault,
         recent: "no prior requests in the last hour",
     };
     match judge::evaluate(&rt, &model, &ctx) {

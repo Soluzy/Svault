@@ -41,6 +41,7 @@ flowchart LR
 | [Installation](docs/installation.md) | crates.io, from source, supported platforms |
 | [Interactive mode (TUI)](docs/tui.md) | The full-screen dashboard and keybindings |
 | [Command reference](docs/commands.md) | Every subcommand and flag |
+| [End-to-end walkthrough](docs/walkthrough.md) | Full flow: create → classify → judge → gated `get`, with real model output |
 | [Policy engine](docs/policy-engine.md) | The agent path — `svault get`, scopes, tiers, audit |
 | [Recovery & portability](docs/recovery.md) | Recovery code for a lost passphrase, export/import bundles |
 | [Daemon](docs/daemon.md) | Optional Unix daemon — keys in memory, auto-lock, `daemon start/stop/status/doctor` |
